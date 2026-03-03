@@ -1,36 +1,55 @@
-# main.py
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, Request
+from firebase_admin import credentials, auth, firestore, initialize_app
 import firebase_admin
-from firebase_admin import credentials, firestore
+from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize Firebase Admin
-cred = credentials.Certificate("serviceAccountKey.json")  # Path to your JSON key
+cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 
 app = FastAPI()
 
-# Pydantic model for a User
-class User(BaseModel):
-    name: str
-    age: int
+origins = [
+    "http://localhost:55453",  # Flutter Web dev server
+]
 
-# Add a user to Firestore
-@app.post("/users/add")
-async def add_user(user: User):
-    doc_ref = db.collection("users").add(user.dict())
-    return {"status": "success", "id": str(doc_ref[1].id)}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Get all users from Firestore
-@app.get("/users/all")
-async def get_users():
-    users_ref = db.collection("users").stream()
-    users = [doc.to_dict() for doc in users_ref]
-    return users
+# 🔐 Verify Firebase ID Token
+async def verify_token(request: Request):
+    id_token = request.headers.get("Authorization")
 
-# Optional root
-@app.get("/")
-async def root():
-    return {"message": "FastAPI + Firebase is working!"}
+    if not id_token:
+        raise HTTPException(status_code=401, detail="Missing token")
+
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        return decoded_token
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# ✅ Create user document in Firestore
+@app.post("/create-user")
+async def create_user(data: dict, user=Depends(verify_token)):
+
+    uid = user["uid"]
+
+    user_ref = db.collection("users").document(uid)
+
+    user_ref.set({
+        "uid": uid,
+        "email": user["email"],
+        "fullName": data.get("fullName"),
+        "createdAt": firestore.SERVER_TIMESTAMP
+    })
+
+    return {"message": "User created successfully"}
