@@ -1,55 +1,38 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
-from firebase_admin import credentials, auth, firestore, initialize_app
-import firebase_admin
+# main.py
+# FastAPI application entry point for the Swipify ecommerce backend.
+# Registers all routers and configures CORS for development.
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Initialize Firebase Admin
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
+# Import all route modules
+from app.routes import products, brands, cart, vouchers, notifications
 
-db = firestore.client()
+# Create the FastAPI app instance
+app = FastAPI(
+    title="Swipify API",
+    description="Backend API for the Swipify Shopee-like ecommerce application",
+    version="2.0.0",
+)
 
-app = FastAPI()
-
-origins = [
-    "http://localhost:55453",  # Flutter Web dev server
-]
-
+# Configure CORS — allow all origins for development (restrict to your domain in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 🔐 Verify Firebase ID Token
-async def verify_token(request: Request):
-    id_token = request.headers.get("Authorization")
-
-    if not id_token:
-        raise HTTPException(status_code=401, detail="Missing token")
-
-    try:
-        decoded_token = auth.verify_id_token(id_token)
-        return decoded_token
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+# Register all routers with their respective URL prefixes
+app.include_router(products.router, prefix="/products", tags=["Products"])
+app.include_router(brands.router, prefix="/brands", tags=["Brands"])
+app.include_router(cart.router, prefix="/cart", tags=["Cart"])
+app.include_router(vouchers.router, prefix="/vouchers", tags=["Vouchers"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 
 
-# ✅ Create user document in Firestore
-@app.post("/create-user")
-async def create_user(data: dict, user=Depends(verify_token)):
-
-    uid = user["uid"]
-
-    user_ref = db.collection("users").document(uid)
-
-    user_ref.set({
-        "uid": uid,
-        "email": user["email"],
-        "fullName": data.get("fullName"),
-        "createdAt": firestore.SERVER_TIMESTAMP
-    })
-
-    return {"message": "User created successfully"}
+@app.get("/")
+async def root():
+    """Health check endpoint — confirms the Swipify API is running."""
+    return {"status": "ok", "message": "Swipify API is running 🚀"}
