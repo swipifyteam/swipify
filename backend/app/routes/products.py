@@ -10,14 +10,29 @@ router = APIRouter()
 
 @router.get("")
 async def get_products():
-    """Fetch all products from Firebase Firestore."""
+    """Fetch all published products from Firebase Firestore."""
     try:
-        docs = db.collection("products").get()
+        # ── ONLY STREAM PUBLISHED PRODUCTS (STRICT) ──────────────────────────
+        docs = db.collection("products").where("is_published", "==", True).get()
         products = []
+        shop_cache = {}
         for doc in docs:
             product = doc.to_dict()
             product["id"] = doc.id
+            
+            # Fetch shop name for display
+            shop_id = product.get("shopId")
+            if shop_id:
+                if shop_id not in shop_cache:
+                    shop_doc = db.collection("shops").document(shop_id).get()
+                    if shop_doc.exists:
+                        shop_cache[shop_id] = shop_doc.to_dict().get("shop_name", "Unknown Shop")
+                    else:
+                        shop_cache[shop_id] = "Unknown Shop"
+                product["shopName"] = shop_cache[shop_id]
+            
             products.append(product)
+        print(f"[HOME] Streamed {len(products)} published products with shop info to frontend.")
         return {"products": products}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -25,24 +40,32 @@ async def get_products():
 
 @router.get("/search")
 async def search_products(q: str = Query(..., description="Search query for product name")):
-    """Search products by name (case-insensitive prefix search).
-    
-    Example: GET /products/search?q=air
-    Returns all products whose name starts with 'air' (case-insensitive).
-    """
+    """Search published products by name (case-insensitive prefix search)."""
     try:
         q_lower = q.lower()
-        docs = db.collection("products").get()
+        # ── ONLY SEARCH PUBLISHED PRODUCTS ─────────────────────────────────
+        docs = db.collection("products").where("is_published", "==", True).get()
         results = []
+        shop_cache = {}
         for doc in docs:
             product = doc.to_dict()
             product["id"] = doc.id
-            # Filter: check if query appears anywhere in the product name
             if q_lower in product.get("name", "").lower():
+                # Fetch shop name for display
+                shop_id = product.get("shopId")
+                if shop_id:
+                    if shop_id not in shop_cache:
+                        shop_doc = db.collection("shops").document(shop_id).get()
+                        if shop_doc.exists:
+                            shop_cache[shop_id] = shop_doc.to_dict().get("shop_name", "Unknown Shop")
+                        else:
+                            shop_cache[shop_id] = "Unknown Shop"
+                    product["shopName"] = shop_cache[shop_id]
                 results.append(product)
+        print(f"[PRODUCT] Search for '{q}' returned {len(results)} items.")
         return {"products": results, "query": q}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(0))
 
 
 @router.get("/{product_id}")
@@ -54,6 +77,16 @@ async def get_product(product_id: str):
             raise HTTPException(status_code=404, detail="Product not found")
         product = doc.to_dict()
         product["id"] = doc.id
+        
+        # Fetch shop name
+        shop_id = product.get("shopId")
+        if shop_id:
+            shop_doc = db.collection("shops").document(shop_id).get()
+            if shop_doc.exists:
+                product["shopName"] = shop_doc.to_dict().get("shop_name", "Unknown Shop")
+            else:
+                product["shopName"] = "Unknown Shop"
+                
         return product
     except HTTPException:
         raise
