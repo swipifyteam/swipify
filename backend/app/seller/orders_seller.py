@@ -1,6 +1,13 @@
+# app/seller/orders_seller.py
+# Seller-specific Order Management and Analytics for Swipify.
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from firebase_client import db
+from app.services.order_service import (
+    get_seller_orders_service, 
+    calculate_seller_earnings_service,
+    update_order_status_service
+)
 
 router = APIRouter()
 
@@ -9,48 +16,49 @@ class OrderStatusUpdateRequest(BaseModel):
 
 @router.get("/{seller_id}")
 async def get_seller_orders(seller_id: str):
-    """Fetch orders belonging to the shop owned by this seller."""
+    """
+    Fetch all customer orders belonging to this seller.
+    Delegates to order_service for consistent Firestore querying.
+    """
     try:
-        # Resolve shop_id for this seller
-        user_doc = db.collection("users").document(seller_id).get()
-        shop_id = None
-        if user_doc.exists:
-            shop_id = user_doc.to_dict().get("shop_id")
-        
-        # Query orders by shop_id (preferred) or direct seller_id
-        if shop_id:
-            docs = db.collection("orders").where("shopId", "==", shop_id).get()
-        else:
-            # Fallback for manual seller mappings
-            docs = db.collection("orders").where("sellerId", "==", seller_id).get()
-            
-        orders = []
-        for doc in docs:
-            order = doc.to_dict()
-            order.pop("createdAt", None) # Remove sentinel for serialisation
-            order["id"] = doc.id
-            orders.append(order)
-            
-        print(f"[ORDER] Streamed {len(orders)} orders for shop {shop_id or seller_id}")
+        print(f"[SELLER API] Fetching customer orders for seller: {seller_id}")
+        orders = get_seller_orders_service(seller_id)
         return {"orders": orders}
     except Exception as e:
-        print(f"[ORDER] ERROR: {str(e)}")
+        print(f"[SELLER API ERROR] {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/stats/{seller_id}")
+async def get_seller_stats(seller_id: str):
+    """
+    🚨 PART 6/7 FIX: REAL DATA (EARNINGS & COUNTS) 🚨
+    Returns REAL calculated earnings and order counts instead of static/fake data.
+    """
+    try:
+        print(f"[SELLER API] Calculating real-time stats for seller: {seller_id}")
+        stats = calculate_seller_earnings_service(seller_id)
+        return stats
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/{order_id}/status")
 async def update_order_status(order_id: str, request: OrderStatusUpdateRequest):
-    """Update the status of an order."""
+    """
+    Update the status of an order (e.g., from 'Packaged' to 'Shipped').
+    Triggers EARNINGS update when marked 'Delivered'.
+    """
     try:
-        doc_ref = db.collection("orders").document(order_id)
-        if not doc_ref.get().exists:
-            raise HTTPException(status_code=404, detail="Order not found")
+        # Use common status update service
+        # Normalizes status case and handles logging
+        print(f"[SELLER API] Updating order {order_id} status to {request.status}")
+        updated_order = update_order_status_service(order_id, request.status)
         
-        valid_statuses = ["Pending", "Packaged", "Shipped", "Delivered", "Cancelled"]
-        if request.status not in valid_statuses:
-            raise HTTPException(status_code=400, detail="Invalid status")
-            
-        doc_ref.update({"status": request.status})
-        
-        return {"message": "Order status updated successfully", "new_status": request.status}
+        return {
+            "message": "Order status updated successfully", 
+            "new_status": updated_order.get("status"),
+            "order": updated_order
+        }
+    except ValueError as v_err:
+        raise HTTPException(status_code=400, detail=str(v_err))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
