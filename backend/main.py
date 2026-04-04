@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import all route modules
-from app.routes import products, brands, cart, vouchers, notifications, engagement, users
+from app.routes import products, brands, cart, vouchers, notifications, engagement, users, orders
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
@@ -39,6 +39,7 @@ app.include_router(seller_products.router, prefix="/seller/products", tags=["Sel
 app.include_router(inventory.router, prefix="/seller/inventory", tags=["Seller - Inventory"])
 app.include_router(orders_seller.router, prefix="/seller/orders", tags=["Seller - Orders"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
 import uuid
 
