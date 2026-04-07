@@ -5,7 +5,7 @@
 import uuid
 from datetime import datetime, timezone
 from firebase_client import db
-from app.models.order import OrderCreateRequest, OrderResponse, OrderItem
+from app.models.order import OrderCreateRequest, OrderResponse, OrderItem, BuyNowRequest
 
 def get_current_time_iso() -> str:
     """Utility to get the current timestamp in ISO 8601 format."""
@@ -64,6 +64,55 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
         
     except Exception as e:
         print(f"[ORDER ERROR] Failed: {str(e)}")
+        raise e
+
+def buy_now_service(buy_request: BuyNowRequest) -> dict:
+    """Business logic for Buy Now checkout (creates an order instantly without cart)."""
+    print(f"[BUY NOW] Processing for user {buy_request.user_id}, product {buy_request.product_id}")
+    
+    try:
+        # 1. Fetch the product details to get exact pricing and seller
+        product_ref = db.collection("products").document(buy_request.product_id)
+        product_doc = product_ref.get()
+        if not product_doc.exists:
+            raise ValueError(f"Product {buy_request.product_id} not found")
+            
+        product_data = product_doc.to_dict()
+        price = float(product_data.get("price", 0.0))
+        seller_id = product_data.get("seller_id", "")
+        name = product_data.get("name", "Unknown Product")
+        
+        # 2. Compute totals
+        total_price = price * buy_request.quantity
+        order_id = str(uuid.uuid4())
+        now = get_current_time_iso()
+        
+        # 3. Build identical order dictionary structure
+        order_dict = {
+            "id": order_id,
+            "user_id": buy_request.user_id,
+            "seller_id": seller_id,
+            "items": [{
+                "product_id": buy_request.product_id,
+                "name": name,
+                "price": price,
+                "quantity": buy_request.quantity
+            }],
+            "total_price": total_price,
+            "status": "pending",
+            "payment_status": "unpaid",
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        # 4. Write to orders collection
+        db.collection("orders").document(order_id).set(order_dict)
+        print("[BUY NOW ORDER CREATED]", order_dict)
+        
+        return order_dict
+        
+    except Exception as e:
+        print(f"[BUY NOW ERROR] Failed: {str(e)}")
         raise e
 
 def get_user_orders_service(user_id: str) -> list:
