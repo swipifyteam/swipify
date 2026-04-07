@@ -4,12 +4,15 @@ from app.models.order import (
     OrderCreateRequest,
     OrderStatusUpdateRequest,
     OrderPaymentUpdateRequest,
-    OrderResponse
+    OrderResponse,
+    BuyNowRequest
 )
 from app.services.order_service import (
     create_order_service,
+    buy_now_service,
     get_user_orders_service,
     get_seller_orders_service,
+    calculate_seller_earnings_service,
     update_order_status_service,
     update_order_payment_service
 )
@@ -32,6 +35,22 @@ async def create_order(order_data: OrderCreateRequest):
     except Exception as e:
         # Log the REAL error so we can debug it
         print(f"[ORDERS API] ❌ Unexpected error creating order: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/buy-now", response_model=OrderResponse, status_code=201)
+async def create_buy_now_order(buy_data: BuyNowRequest):
+    """Create a new order directly without using the cart."""
+    print(f"[ORDERS API] POST /orders/buy-now — user={buy_data.user_id}, product={buy_data.product_id}")
+    try:
+        order = buy_now_service(buy_data)
+        print(f"[ORDERS API] ✅ Buy Now order created: id={order['id']}")
+        return order
+    except ValueError as e:
+        print(f"[ORDERS API] ❌ Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[ORDERS API] ❌ Unexpected error in Buy Now: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -81,6 +100,18 @@ async def get_seller_orders(seller_id: str = Path(..., description="The ID of th
         return orders
     except Exception as e:
         print(f"[ORDERS API] ❌ Error fetching seller orders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats/{seller_id}")
+async def get_seller_stats(seller_id: str = Path(..., description="The ID of the seller")):
+    """Return seller statistics (earnings, order count)."""
+    print(f"[ORDERS API] GET /orders/stats/{seller_id}")
+    try:
+        stats = calculate_seller_earnings_service(seller_id)
+        return stats
+    except Exception as e:
+        print(f"[ORDERS API] ❌ Error fetching seller stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
