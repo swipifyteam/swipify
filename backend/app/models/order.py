@@ -25,6 +25,11 @@ class OrderStatusUpdateRequest(BaseModel):
 class OrderPaymentUpdateRequest(BaseModel):
     payment_status: str # unpaid, paid, failed
 
+class BuyNowRequest(BaseModel):
+    user_id: str
+    product_id: str
+    quantity: int
+
 class OrderResponse(BaseModel):
     id: str
     user_id: str
