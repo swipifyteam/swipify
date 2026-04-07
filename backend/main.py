@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import all route modules
-from app.routes import products, brands, cart, vouchers, notifications, engagement, users, orders
+from app.routes import products, categories, cart, vouchers, notifications, engagement, users, orders
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
@@ -30,16 +30,15 @@ app.add_middleware(
 
 # Register all routers with their respective URL prefixes
 app.include_router(products.router, prefix="/products", tags=["Products"])
-app.include_router(brands.router, prefix="/brands", tags=["Brands"])
+app.include_router(categories.router, prefix="/categories", tags=["Categories"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
+app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 app.include_router(vouchers.router, prefix="/vouchers", tags=["Vouchers"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 app.include_router(seller_routes.router, prefix="/seller", tags=["Seller & Admin"])
 app.include_router(seller_products.router, prefix="/seller/products", tags=["Seller - Products"])
 app.include_router(inventory.router, prefix="/seller/inventory", tags=["Seller - Inventory"])
-app.include_router(orders_seller.router, prefix="/seller/orders", tags=["Seller - Orders"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
-app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
 import uuid
 

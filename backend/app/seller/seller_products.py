@@ -11,7 +11,7 @@ router = APIRouter()
 class ProductCreateRequest(BaseModel):
     sellerId: str
     name: str
-    brandId: str
+    category: str
     price: float
     stock: int
     description: str
@@ -21,7 +21,7 @@ class ProductCreateRequest(BaseModel):
 
 class ProductUpdateRequest(BaseModel):
     name: Optional[str] = None
-    brandId: Optional[str] = None
+    category: Optional[str] = None
     price: Optional[float] = None
     stock: Optional[int] = None
     description: Optional[str] = None
