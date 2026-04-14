@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+
 
 class AddressCreateRequest(BaseModel):
     user_id: str
