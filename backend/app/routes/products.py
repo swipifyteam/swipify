@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def get_products():
+def get_products():
     """Fetch all published products from Firebase Firestore."""
     try:
         # ── ONLY STREAM PUBLISHED PRODUCTS (STRICT) ──────────────────────────
@@ -39,7 +39,7 @@ async def get_products():
 
 
 @router.get("/search")
-async def search_products(q: str = Query(..., description="Search query for product name")):
+def search_products(q: str = Query(..., description="Search query for product name")):
     """Search published products by name (case-insensitive prefix search)."""
     try:
         q_lower = q.lower()
@@ -69,7 +69,7 @@ async def search_products(q: str = Query(..., description="Search query for prod
 
 
 @router.get("/category/{category}")
-async def get_products_by_category(category: str):
+def get_products_by_category(category: str):
     """Fetch all products where category matches."""
     try:
         category_lower = category.lower()
@@ -98,7 +98,7 @@ async def get_products_by_category(category: str):
 
 
 @router.get("/seller/{seller_id}")
-async def get_products_by_seller(seller_id: str):
+def get_products_by_seller(seller_id: str):
     """Return all published products of that seller."""
     try:
         docs = db.collection("products").where("is_published", "==", True).get()
@@ -126,7 +126,7 @@ async def get_products_by_seller(seller_id: str):
 
 
 @router.get("/{product_id}")
-async def get_product(product_id: str):
+def get_product(product_id: str):
     """Fetch a single product by its Firestore document ID."""
     try:
         doc = db.collection("products").document(product_id).get()

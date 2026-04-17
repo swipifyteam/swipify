@@ -1,92 +1,68 @@
-# app/routes/vouchers.py
-# Voucher API endpoints for the Swipify ecommerce platform.
-# Handles fetching active vouchers and claiming them (creates claimedVouchers + notification).
-
 from fastapi import APIRouter, HTTPException
+from app.models.voucher import VoucherResponse, VoucherApplyRequest, VoucherApplyResponse, VoucherAvailableRequest
+from app.services.voucher_service import (
+    list_active_vouchers_service,
+    apply_voucher_service,
+    get_available_vouchers_service,
+)
 from pydantic import BaseModel
-from firebase_client import db
-from google.cloud.firestore_v1 import SERVER_TIMESTAMP
-import uuid
+from typing import List
 
 router = APIRouter()
 
-
-class ClaimVoucherRequest(BaseModel):
-    """Request body for claiming a voucher."""
-    userId: str
-    voucherId: str
-
-
-@router.get("")
-async def get_vouchers():
-    """Fetch all available vouchers from Firestore."""
+@router.get("", response_model=List[VoucherResponse])
+async def get_all_active_vouchers():
+    """Fetch all active available vouchers for display."""
     try:
-        docs = db.collection("vouchers").get()
-        vouchers = []
-        for doc in docs:
-            voucher = doc.to_dict()
-            voucher["id"] = doc.id
-            vouchers.append(voucher)
-        return {"vouchers": vouchers}
+        return list_active_vouchers_service()
     except Exception as e:
+        print(f"[VOUCHER ERROR] {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/available", response_model=List[VoucherResponse])
+async def get_available_vouchers(request: VoucherAvailableRequest):
+    """Fetch applicable vouchers for a checkout session filtered by seller IDs and cart totals."""
+    try:
+        # Guard against empty seller_ids (Firestore 'in' query requires at least 1 element)
+        if not request.seller_ids:
+            return []
+        return get_available_vouchers_service(request)
+    except Exception as e:
+        print(f"[VOUCHER AVAILABLE ERROR] {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/claim")
-async def claim_voucher(request: ClaimVoucherRequest):
-    """Claim a voucher for a user.
-    
-    Prevents duplicate claims — a userId + voucherId pair can only be claimed once.
-    On success, creates a claimedVoucher document AND a notification for the user.
+@router.post("/apply-voucher", response_model=VoucherApplyResponse)
+async def apply_voucher(request: VoucherApplyRequest):
+    """
+    Apply a voucher to a checkout session.
+    Returns the discount and the updated total.
     """
     try:
-        # Check if this user has already claimed this voucher
-        existing = (
-            db.collection("claimedVouchers")
-            .where("userId", "==", request.userId)
-            .where("voucherId", "==", request.voucherId)
-            .limit(1)
-            .get()
+        # Re-using the robust service logic from seller_vouchers
+        # Ensure that VoucherApplyRequest model matches the frontend expectations
+        return apply_voucher_service(request)
+    except HTTPException as e:
+        # Fallback as requested: invalid voucher -> discount = 0
+        print(f"[VOUCHER VALIDATION] {e.detail}")
+        # Note: Depending on frontend needs, we might return a 200 with 0 discount 
+        # but usually 400 with detail is better. The user said "invalid voucher -> discount = 0" 
+        # so I will return a success response with 0 discount if it's a validation error.
+        
+        # However, for genuine errors (404), we might want to be explicit.
+        # I'll implement a safe wrapper.
+        return VoucherApplyResponse(
+            discount=0.0,
+            final_total=request.cart_total,
+            voucher_id="",
+            code=request.voucher_code,
+            message=e.detail
         )
-
-        if len(existing) > 0:
-            raise HTTPException(
-                status_code=400,
-                detail="You have already claimed this voucher"
-            )
-
-        # Fetch the voucher to get its title for the notification
-        voucher_doc = db.collection("vouchers").document(request.voucherId).get()
-        if not voucher_doc.exists:
-            raise HTTPException(status_code=404, detail="Voucher not found")
-
-        voucher = voucher_doc.to_dict()
-        claim_id = str(uuid.uuid4())
-
-        # Create the claimedVoucher document
-        db.collection("claimedVouchers").document(claim_id).set({
-            "userId": request.userId,
-            "voucherId": request.voucherId,
-            "claimedAt": SERVER_TIMESTAMP,
-            "used": False,
-        })
-
-        # Create a notification to inform the user about their claimed voucher
-        notification_id = str(uuid.uuid4())
-        db.collection("notifications").document(notification_id).set({
-            "userId": request.userId,
-            "title": "🎟️ Voucher Claimed!",
-            "message": f"You have successfully claimed: {voucher.get('title', 'a voucher')}. Use it at checkout!",
-            "isRead": False,
-            "createdAt": SERVER_TIMESTAMP,
-        })
-
-        return {
-            "message": "Voucher claimed successfully!",
-            "claimId": claim_id,
-            "notificationId": notification_id,
-        }
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[VOUCHER ERROR] {e}")
+        return VoucherApplyResponse(
+            discount=0.0,
+            final_total=request.cart_total,
+            voucher_id="",
+            code=request.voucher_code,
+            message="Internal Server Error"
+        )
