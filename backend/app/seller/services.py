@@ -35,6 +35,11 @@ def apply_seller(data: SellerApplicationRequest):
         "status": SellerStatusEnum.PENDING,
         "identity_image_url": data.identity_image_url,
         "selfie_image_url": data.selfie_image_url,
+        "street": data.street,
+        "barangay": data.barangay,
+        "city": data.city,
+        "province": data.province,
+        "postal_code": data.postal_code,
         "createdAt": SERVER_TIMESTAMP,
         "updatedAt": SERVER_TIMESTAMP
     }
@@ -136,6 +141,13 @@ def approve_seller(seller_id: str):
             "description": f"Welcome to {store_name}!",
             "logo_url": None,
             "banner_url": None,
+            "address": {
+                "street": seller.get("street"),
+                "barangay": seller.get("barangay"),
+                "city": seller.get("city"),
+                "province": seller.get("province"),
+                "postal_code": seller.get("postal_code")
+            },
             "shipping_settings": {
                 "fee": 50,
                 "regions": ["NCR", "Luzon"],
