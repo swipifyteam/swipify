@@ -5,7 +5,9 @@ from app.models.order import (
     OrderStatusUpdateRequest,
     OrderPaymentUpdateRequest,
     OrderResponse,
-    BuyNowRequest
+    BuyNowRequest,
+    CalculateTotalRequest,
+    CalculateTotalResponse
 )
 from app.services.order_service import (
     create_order_service,
@@ -28,13 +30,43 @@ async def create_order(order_data: OrderCreateRequest):
     try:
         order = create_order_service(order_data)
         print(f"[ORDERS API] ✅ Order created: id={order['id']}")
-        return order
+        return OrderResponse(**order)
     except ValueError as e:
         print(f"[ORDERS API] ❌ Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         # Log the REAL error so we can debug it
         print(f"[ORDERS API] ❌ Unexpected error creating order: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/calculate-total", response_model=CalculateTotalResponse)
+def calculate_order_total(request: CalculateTotalRequest):
+    """Computes shipping fee completely backend-side with strict 120/170 enforcement or dynamic fallback"""
+    try:
+        if request.shipping_fee is not None:
+            shipping_fee = request.shipping_fee
+        else:
+            # Fallback to dynamic but with a minimum of 120 if anything is in cart
+            base_fee = 40.0
+            distance_fee = 8.0 * request.distance_km
+            weight_fee = 5.0 * request.weight_kg
+            shipping_fee = base_fee + distance_fee + weight_fee
+            
+            if shipping_fee < 120.0:
+                shipping_fee = 120.0
+            if shipping_fee > 250.0:
+                shipping_fee = 250.0
+            
+        shipping_fee = round(shipping_fee, 2)
+        total = round(request.subtotal + shipping_fee, 2)
+        
+        return CalculateTotalResponse(
+            subtotal=request.subtotal,
+            shipping_fee=shipping_fee,
+            total=total
+        )
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -45,7 +77,7 @@ async def create_buy_now_order(buy_data: BuyNowRequest):
     try:
         order = buy_now_service(buy_data)
         print(f"[ORDERS API] ✅ Buy Now order created: id={order['id']}")
-        return order
+        return OrderResponse(**order)
     except ValueError as e:
         print(f"[ORDERS API] ❌ Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))

@@ -33,6 +33,11 @@ class UpdateCartRequest(BaseModel):
     quantity: int
 
 
+class ClearCartRequest(BaseModel):
+    """Request body for clearing the whole cart."""
+    userId: str
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/{user_id}")
@@ -153,4 +158,20 @@ async def update_cart_quantity(request: UpdateCartRequest):
         item_ref.update({"quantity": request.quantity})
         return {"message": "Quantity updated", "quantity": request.quantity}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/clear")
+async def clear_cart(request: ClearCartRequest):
+    """Clear all items in the user's cart."""
+    try:
+        print(f"[CART] Clearing cart for user: {request.userId}")
+        items_ref = db.collection("carts").document(request.userId).collection("items")
+        # Delete all documents in subcollection
+        docs = items_ref.get()
+        for doc in docs:
+            doc.reference.delete()
+        return {"message": "Cart cleared"}
+    except Exception as e:
+        print(f"[CART CLEAR ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
