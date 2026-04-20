@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.models.voucher import VoucherResponse, VoucherApplyRequest, VoucherApplyResponse, VoucherAvailableRequest
+from app.models.voucher import VoucherResponse, VoucherApplyRequest, VoucherApplyResponse, VoucherAvailableRequest, AvailableVouchersResponse
 from app.services.voucher_service import (
     list_active_vouchers_service,
     apply_voucher_service,
@@ -19,14 +19,15 @@ async def get_all_active_vouchers():
         print(f"[VOUCHER ERROR] {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/available", response_model=List[VoucherResponse])
+@router.post("/available", response_model=AvailableVouchersResponse)
 async def get_available_vouchers(request: VoucherAvailableRequest):
     """Fetch applicable vouchers for a checkout session filtered by seller IDs and cart totals."""
     try:
         # Guard against empty seller_ids (Firestore 'in' query requires at least 1 element)
         if not request.seller_ids:
-            return []
-        return get_available_vouchers_service(request)
+            return AvailableVouchersResponse(vouchers=[])
+        vouchers = get_available_vouchers_service(request)
+        return AvailableVouchersResponse(vouchers=vouchers)
     except Exception as e:
         print(f"[VOUCHER AVAILABLE ERROR] {e}")
         raise HTTPException(status_code=500, detail=str(e))

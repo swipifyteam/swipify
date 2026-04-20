@@ -39,3 +39,33 @@ class UploadDocumentResponse(BaseModel):
     message: str
     file_url: str
     document_id: str
+
+# --- SELLER PRODUCTS SCHEMAS ---
+
+class ProductCreateRequest(BaseModel):
+    name: str
+    description: str
+    price: float
+    stock: int
+    category: str
+    images: List[str]
+    sku: Optional[str] = None
+    is_published: Optional[bool] = True
+
+class ProductUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    stock: Optional[int] = None
+    category: Optional[str] = None
+    images: Optional[List[str]] = None
+    sku: Optional[str] = None
+    is_published: Optional[bool] = None
+
+class BulkActionRequest(BaseModel):
+    product_ids: List[str]
+    action: str  # publish, unpublish, archive
+    category: Optional[str] = None  # for update_category action
+
+class StockUpdateRequest(BaseModel):
+    adjustment: int  # +/- value
