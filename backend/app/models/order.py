@@ -1,0 +1,96 @@
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+from enum import Enum
+
+from app.models.shipping import SelectedShippingOption
+
+class OrderStatus(str, Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    PROCESSING = "processing"
+    SHIPPED = "shipped"
+    IN_TRANSIT = "in_transit"
+    DELIVERED = "delivered"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+VALID_ORDER_TRANSITIONS = {
+    OrderStatus.PENDING: {OrderStatus.PAID, OrderStatus.CANCELLED},
+    OrderStatus.PAID: {OrderStatus.PROCESSING, OrderStatus.CANCELLED},
+    OrderStatus.PROCESSING: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
+    OrderStatus.SHIPPED: {OrderStatus.IN_TRANSIT},
+    OrderStatus.IN_TRANSIT: {OrderStatus.DELIVERED},
+    OrderStatus.DELIVERED: {OrderStatus.COMPLETED},
+    OrderStatus.COMPLETED: set(),  # No transitions from completed
+    OrderStatus.CANCELLED: set(),  # No transitions from cancelled
+}
+
+class OrderItem(BaseModel):
+    product_id: str
+    name: str
+    price: float
+    quantity: int
+    image_url: Optional[str] = None # Added for UI snapshots
+
+class AddressSnapshot(BaseModel):
+    full_name: str
+    phone: str
+    region: str
+    city: str
+    barangay: str
+    street: str
+    postal_code: str
+
+class OrderCreateRequest(BaseModel):
+    user_id: str
+    seller_id: str
+    items: List[OrderItem]
+    total_price: float
+    selected_shipping_option: SelectedShippingOption
+    shipping_address: AddressSnapshot
+    logistic_provider: Optional[str] = "Standard Logistics"
+    tracking_number: Optional[str] = None
+    discount_amount: Optional[float] = 0.0
+    voucher_id: Optional[str] = None
+
+class OrderStatusUpdateRequest(BaseModel):
+    status: OrderStatus # Use the Enum for status
+
+class OrderPaymentUpdateRequest(BaseModel):
+    payment_status: str # unpaid, paid, failed
+
+class BuyNowRequest(BaseModel):
+    user_id: str
+    product_id: str
+    quantity: int
+    selected_shipping_option: SelectedShippingOption
+    shipping_address: AddressSnapshot
+
+class OrderResponse(BaseModel):
+    id: str
+    user_id: str
+    seller_id: str
+    items: List[OrderItem]
+    total_price: float
+    status: OrderStatus # Use the Enum for status
+    payment_status: str
+    created_at: str
+    updated_at: str
+    shipping_details: Optional[SelectedShippingOption] = None
+    shipping_address: Optional[AddressSnapshot] = None
+    logistic_provider: Optional[str] = None
+    tracking_number: Optional[str] = None
+    discount_amount: Optional[float] = 0.0
+    voucher_id: Optional[str] = None
+
+class CalculateTotalRequest(BaseModel):
+    distance_km: float
+    weight_kg: float
+    subtotal: float
+    shipping_fee: Optional[float] = None
+
+class CalculateTotalResponse(BaseModel):
+    subtotal: float
+    shipping_fee: float
+    total: float
