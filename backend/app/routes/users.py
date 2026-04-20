@@ -42,6 +42,7 @@ async def get_user_profile(uid: str):
             doc = db.collection("users").document(uid).get()
         
         data = doc.to_dict()
+        data["id"] = doc.id # Assign doc ID directly
         # Handle timestamp conversion
         for key in ["created_at", "updated_at"]:
             if data.get(key) and hasattr(data[key], "isoformat"):

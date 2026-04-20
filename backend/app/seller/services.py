@@ -202,3 +202,62 @@ def reject_seller(seller_id: str, reason: str = None):
     create_notification(uid, "⚠️ Seller Application Update", msg, "SELLER_REJECTED")
     
     return True, "Seller rejected"
+
+def get_shop_settings(seller_id: str):
+    """"Fetch shop settings for a given seller UID."""
+    # Note: shop ID is the same as seller/user UID
+    doc = db.collection("shops").document(seller_id).get()
+    if not doc.exists:
+        # If shop doc doesn't exist, return defaults
+        return {
+            "shop_name": "My Shop",
+            "description": "No description set",
+            "vacation_mode": False,
+            "logo_url": None,
+            "banner_url": None,
+            "shipping_settings": {
+                "standard_fee": 120.0,
+                "express_fee": 200.0,
+                "free_threshold": 0.0
+            },
+            "order_alerts": True,
+            "payout_alerts": True
+        }
+    return doc.to_dict()
+
+def update_shop_settings(seller_id: str, data: dict):
+    """"Update shop settings in Firestore."""
+    shop_ref = db.collection("shops").document(seller_id)
+    doc = shop_ref.get()
+    
+    # Merge existing data with new data
+    update_data = {
+        "updated_at": SERVER_TIMESTAMP
+    }
+    
+    # Map fields from request to Firestore document
+    if "shop_name" in data: update_data["shop_name"] = data["shop_name"]
+    if "description" in data: update_data["description"] = data["description"]
+    if "logo_url" in data: update_data["logo_url"] = data["logo_url"]
+    if "banner_url" in data: update_data["banner_url"] = data["banner_url"]
+    if "vacation_mode" in data: update_data["vacation_mode"] = data["vacation_mode"]
+    
+    # Alerts
+    if "order_alerts" in data: update_data["order_alerts"] = data["order_alerts"]
+    if "payout_alerts" in data: update_data["payout_alerts"] = data["payout_alerts"]
+    
+    # Nested shipping settings
+    if "shipping_settings" in data:
+        current_shipping = doc.to_dict().get("shipping_settings", {}) if doc.exists else {}
+        current_shipping.update(data["shipping_settings"])
+        update_data["shipping_settings"] = current_shipping
+
+    if not doc.exists:
+        # Initialize basic fields
+        update_data["owner_id"] = seller_id
+        update_data["created_at"] = SERVER_TIMESTAMP
+        shop_ref.set(update_data)
+    else:
+        shop_ref.update(update_data)
+        
+    return True, "Shop settings updated"
