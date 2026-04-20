@@ -51,7 +51,13 @@ async def update_order_status(order_id: str, request: OrderStatusUpdateRequest):
         # Use common status update service
         # Normalizes status case and handles logging
         print(f"[SELLER API] Updating order {order_id} status to {request.status}")
-        updated_order = update_order_status_service(order_id, request.status)
+        
+        # Ensure request.status is passed as the Enum member
+        # (pydantic handles the string-to-enum conversion for us via OrderStatusUpdateRequest)
+        from app.models.order import OrderStatus
+        status_enum = OrderStatus(request.status)
+        
+        updated_order = update_order_status_service(order_id, status_enum)
         
         return {
             "message": "Order status updated successfully", 
@@ -60,5 +66,24 @@ async def update_order_status(order_id: str, request: OrderStatusUpdateRequest):
         }
     except ValueError as v_err:
         raise HTTPException(status_code=400, detail=str(v_err))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi.responses import Response
+from app.services.order_service import generate_seller_orders_csv_service
+
+@router.get("/report/{seller_id}")
+async def download_seller_report(seller_id: str):
+    """"Generate and download a CSV sales report for the seller."""
+    try:
+        csv_content = generate_seller_orders_csv_service(seller_id)
+        
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=swipify_report_{seller_id[:8]}.csv"
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

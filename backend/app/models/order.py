@@ -16,14 +16,14 @@ class OrderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 VALID_ORDER_TRANSITIONS = {
-    OrderStatus.PENDING: {OrderStatus.PAID, OrderStatus.CANCELLED},
+    OrderStatus.PENDING: {OrderStatus.PROCESSING, OrderStatus.PAID, OrderStatus.CANCELLED},
     OrderStatus.PAID: {OrderStatus.PROCESSING, OrderStatus.CANCELLED},
     OrderStatus.PROCESSING: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
-    OrderStatus.SHIPPED: {OrderStatus.IN_TRANSIT},
+    OrderStatus.SHIPPED: {OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED},
     OrderStatus.IN_TRANSIT: {OrderStatus.DELIVERED},
     OrderStatus.DELIVERED: {OrderStatus.COMPLETED},
-    OrderStatus.COMPLETED: set(),  # No transitions from completed
-    OrderStatus.CANCELLED: set(),  # No transitions from cancelled
+    OrderStatus.COMPLETED: set(),
+    OrderStatus.CANCELLED: set(),
 }
 
 class OrderItem(BaseModel):

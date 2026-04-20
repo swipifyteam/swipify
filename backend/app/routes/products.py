@@ -70,7 +70,7 @@ def search_products(q: str = Query(..., description="Search query for product na
 
 @router.get("/category/{category}")
 def get_products_by_category(category: str):
-    """Fetch all products where category matches."""
+    """Fetch all products where category matches (falls back to brandId)."""
     try:
         category_lower = category.lower()
         docs = db.collection("products").where("is_published", "==", True).get()
@@ -79,7 +79,12 @@ def get_products_by_category(category: str):
         for doc in docs:
             product = doc.to_dict()
             product["id"] = doc.id
-            if product.get("category", "").lower() == category_lower:
+            
+            # Match by category OR fallback to brandId
+            prod_cat = product.get("category", "").lower()
+            prod_brand = product.get("brandId", "").lower()
+            
+            if prod_cat == category_lower or prod_brand == category_lower:
                 # Fetch shop name for display
                 shop_id = product.get("shopId")
                 if shop_id:
@@ -91,7 +96,7 @@ def get_products_by_category(category: str):
                             shop_cache[shop_id] = "Unknown Shop"
                     product["shopName"] = shop_cache[shop_id]
                 results.append(product)
-        print(f"[CATEGORY FETCH] Fetched {len(results)} items for category '{category}'.")
+        print(f"[CATEGORY FETCH] Fetched {len(results)} items for category/brand '{category}'.")
         return {"products": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

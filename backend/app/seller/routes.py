@@ -100,3 +100,16 @@ async def admin_reject_seller(request: ApproveRejectRequest):
     if not success:
         raise HTTPException(status_code=404, detail=result)
     return {"message": result}
+
+@router.get("/shop/{seller_id}")
+async def get_shop_settings(seller_id: str):
+    """Retrieve shop settings for a seller."""
+    return services.get_shop_settings(seller_id)
+
+@router.patch("/shop/{seller_id}")
+async def update_shop_settings(seller_id: str, data: dict):
+    """Update shop settings for a seller."""
+    success, message = services.update_shop_settings(seller_id, data)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"message": message}
