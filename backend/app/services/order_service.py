@@ -220,7 +220,7 @@ def get_user_orders_service(user_id: str) -> list:
             orders.append(order)
 
         # Reverse chronological order (simple list sort)
-        orders.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        orders.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         return orders
     except Exception as e:
         print(f"[GET USER ORDERS ERROR] {str(e)}")
@@ -230,19 +230,22 @@ def get_user_orders_service(user_id: str) -> list:
 def get_seller_orders_service(seller_id: str) -> list:
     """Fetch all orders for a specific seller/shop."""
     try:
-        docs = db.collection("orders").where("seller_id", "==", seller_id).get()
-        orders = []
-        for doc in docs:
+        # Fetch using seller_id
+        docs_seller = db.collection("orders").where("seller_id", "==", seller_id).get()
+
+        order_map = {}
+
+        for doc in docs_seller:
             order = doc.to_dict()
             order["id"] = doc.id
-            orders.append(order)
+            order_map[doc.id] = order
 
-        orders.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        orders = list(order_map.values())
+        orders.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
         return orders
     except Exception as e:
         print(f"[GET SELLER ORDERS ERROR] {str(e)}")
         raise e
-
 
 def calculate_seller_earnings_service(seller_id: str) -> dict:
     """
@@ -251,24 +254,22 @@ def calculate_seller_earnings_service(seller_id: str) -> dict:
     Also returns a count of all current orders for the dashboard.
     """
     try:
-        docs = db.collection("orders").where("seller_id", "==", seller_id).get()
+        orders = get_seller_orders_service(seller_id)
         total_earnings = 0.0
         total_orders_count = 0
         delivered_count = 0
 
-        for doc in docs:
-            order = doc.to_dict()
+        for order in orders:
             total_orders_count += 1
 
-            # Sum up only orders marked as 'delivered' (real money)
-            # Case insensitive check
+            # Sum up only orders marked as 'delivered' or 'completed' (real money)
             status = order.get("status", "").lower()
-            if status == OrderStatus.DELIVERED.value:
+            if status in [OrderStatus.DELIVERED.value, OrderStatus.COMPLETED.value]:
                 total_earnings += float(order.get("total_price", 0.0))
                 delivered_count += 1
 
         print(
-            f"[EARNINGS CALCULATED] Seller={seller_id}, Total={total_earnings}, Delivered Order Count={delivered_count}"
+            f"[EARNINGS CALCULATED] Seller={seller_id}, Total={total_earnings}, Delivered/Completed Order Count={delivered_count}"
         )
         return {
             "total_earnings": total_earnings,
@@ -360,4 +361,42 @@ def update_order_payment_service(order_id: str, new_payment_status: str) -> dict
         return final_doc
     except Exception as e:
         print(f"[UPDATE PAYMENT ERROR] {str(e)}")
+        raise e
+
+import io
+import csv
+
+def generate_seller_orders_csv_service(seller_id: str):
+    """"Generate a CSV report of all orders for a seller."""
+    try:
+        orders = get_seller_orders_service(seller_id)
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Header
+        writer.writerow([
+            "Order ID", "Date", "Customer ID", "Items", "Total Price", 
+            "Status", "Payment", "Shipping Provider", "Tracking Number"
+        ])
+        
+        for order in orders:
+            # Flatten items for CSV
+            items_str = "; ".join([f"{item['name']} (x{item['quantity']})" for item in order.get("items", [])])
+            
+            writer.writerow([
+                order.get("id"),
+                order.get("created_at"),
+                order.get("user_id"),
+                items_str,
+                f"PHP {order.get('total_price', 0.0):.2f}",
+                order.get("status"),
+                order.get("payment_status"),
+                order.get("logistic_provider"),
+                order.get("tracking_number") or "N/A"
+            ])
+            
+        return output.getvalue()
+    except Exception as e:
+        print(f"[REPORT ERROR] {str(e)}")
         raise e
