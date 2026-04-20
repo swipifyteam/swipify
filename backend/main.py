@@ -6,11 +6,12 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import all route modules
-from app.routes import products, brands, cart, vouchers, notifications, engagement, users
+from app.routes import products, categories, cart, vouchers, notifications, engagement, users, orders, address, shipping, reviews
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
 from app.seller import orders_seller
+from app.routes import seller_vouchers
 
 # Create the FastAPI app instance
 app = FastAPI(
@@ -19,26 +20,32 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Configure CORS — allow all origins for development (restrict to your domain in production)
+# Configure CORS — allow all origins for development
+# allow_credentials=False is required when allow_origins=["*"] (browser CORS spec)
+# Tokens are passed in request bodies/Authorization headers, not cookies.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Register all routers with their respective URL prefixes
 app.include_router(products.router, prefix="/products", tags=["Products"])
-app.include_router(brands.router, prefix="/brands", tags=["Brands"])
+app.include_router(categories.router, prefix="/categories", tags=["Categories"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
+app.include_router(orders.router, prefix="/orders", tags=["Orders"])
 app.include_router(vouchers.router, prefix="/vouchers", tags=["Vouchers"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 app.include_router(seller_routes.router, prefix="/seller", tags=["Seller & Admin"])
 app.include_router(seller_products.router, prefix="/seller/products", tags=["Seller - Products"])
 app.include_router(inventory.router, prefix="/seller/inventory", tags=["Seller - Inventory"])
-app.include_router(orders_seller.router, prefix="/seller/orders", tags=["Seller - Orders"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(address.router, tags=["Addresses"])
+app.include_router(shipping.router, prefix="/shipping", tags=["Shipping"])
+app.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
+app.include_router(seller_vouchers.router, tags=["Seller Vouchers"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
 import uuid
 

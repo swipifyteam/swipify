@@ -20,6 +20,12 @@ class SellerApplicationRequest(BaseModel):
     identity_image_url: Optional[str] = None
     selfie_image_url: Optional[str] = None
     agree_to_terms: bool
+    # Address details for shipping origin
+    street: Optional[str] = None
+    barangay: Optional[str] = None
+    city: Optional[str] = None
+    province: Optional[str] = None
+    postal_code: Optional[str] = None
 
 class ApproveRejectRequest(BaseModel):
     seller_id: str
