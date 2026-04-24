@@ -60,3 +60,25 @@ class LoyaltyConfigResponse(BaseModel):
     min_redeem_points: int
     is_enabled: bool
     updated_at: str
+
+# --- PLATFORM VOUCHERS ---
+class PlatformVoucherCreateRequest(BaseModel):
+    code: str = Field(..., min_length=3, max_length=20)
+    discount_type: str = Field(..., pattern="^(percentage|fixed)$")
+    value: float = Field(..., gt=0)
+    min_spend: float = Field(default=0.0, ge=0)
+    start_date: datetime = Field(default_factory=datetime.now)
+    end_date: datetime
+    max_usage: Optional[int] = Field(None, ge=1)
+
+class PlatformVoucherResponse(BaseModel):
+    id: str
+    code: str
+    discount_type: str
+    value: float
+    min_spend: float
+    start_date: str
+    end_date: str
+    usage_count: int
+    max_usage: Optional[int]
+    created_at: str
