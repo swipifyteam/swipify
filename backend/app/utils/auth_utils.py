@@ -16,19 +16,15 @@ def get_current_user_id(authorization: str = Header(None)) -> str:
     
     token = parts[1]
     
-    # Try to verify token. Fallback to just returning token as UID for dev/test compatibility if needed, 
-    # but the prompt says STRICT Firebase auth. So we will verify.
-    # If the token is just a simple string (like in tests), it will fail.
-    # For now, let's strictly verify:
     try:
         decoded_token = firebase_admin.auth.verify_id_token(token)
         return decoded_token['uid']
+    except firebase_admin.auth.InvalidIdTokenError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    except firebase_admin.auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Authentication token expired")
     except Exception as e:
-        # Fallback for dev environment where they might be passing raw UID (based on previous implementation)
-        # Ideally, we should remove this fallback in production, but let's keep it temporarily so we don't break existing tests immediately
-        if len(token) < 50: # basic heuristic to check if it's a raw uid vs JWT
-            return token
-        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
 def get_current_user(uid: str = Depends(get_current_user_id)) -> dict:
     user_ref = db.collection("users").document(uid).get()
