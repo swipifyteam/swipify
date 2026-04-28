@@ -82,3 +82,13 @@ class PlatformVoucherResponse(BaseModel):
     usage_count: int
     max_usage: Optional[int]
     created_at: str
+
+class PlatformVoucherUpdateRequest(BaseModel):
+    """Partial update model for platform vouchers."""
+    code: Optional[str] = None
+    discount_type: Optional[str] = Field(None, pattern="^(percentage|fixed)$")
+    value: Optional[float] = Field(None, gt=0)
+    min_spend: Optional[float] = Field(None, ge=0)
+    end_date: Optional[datetime] = None
+    max_usage: Optional[int] = Field(None, ge=1)
+

@@ -2,13 +2,17 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from firebase_client import db
 from app.models.user import UserProfile, UserUpdateRequest
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+import firebase_admin.auth as firebase_auth
 import cloudinary
 import cloudinary.uploader
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Cloudinary Configuration
 cloudinary.config(
@@ -20,37 +24,84 @@ cloudinary.config(
 
 router = APIRouter()
 
+
+def _resolve_auth_user_data(uid: str) -> dict:
+    """Fetch real email/name from Firebase Auth. Never returns placeholders.
+    Null-safety: if name is missing, defaults to 'User [Last 4 of UID]'.
+    """
+    real_email = None
+    real_name = None
+    try:
+        auth_record = firebase_auth.get_user(uid)
+        real_email = auth_record.email
+        real_name = auth_record.display_name
+    except Exception as e:
+        logger.warning(f"[AUTH FIX] Could not fetch Auth record for {uid}: {e}")
+
+    # [AUTH FIX] Null-safety fallbacks: No "New User" or "@placeholder.com"
+    if not real_name or real_name.strip() in ["", "New User"]:
+        real_name = f"User {uid[-4:]}"
+    if not real_email or real_email.strip() == "" or real_email.endswith("@placeholder.com"):
+        # Attempt to get email from auth_record if it was missing in Firestore
+        real_email = real_email if real_email and not real_email.endswith("@placeholder.com") else None
+
+    return {"name": real_name, "email": real_email}
+
+
 @router.get("/{uid}", response_model=UserProfile)
 async def get_user_profile(uid: str):
     """Retrieve user profile from Firestore."""
     try:
-        print(f"[USER FETCHED] UID: {uid}")
         doc = db.collection("users").document(uid).get()
         if not doc.exists:
-            # Create a default user document if it doesn't exist
-            # This is helpful for first-time login
+            # [AUTH FIX] Fetch real data from Firebase Auth — NO placeholders
+            auth_data = _resolve_auth_user_data(uid)
             user_data = {
-                "id": uid,
-                "name": "New User",
-                "email": f"{uid}@placeholder.com", 
+                "id": uid, # Ensure UID matches Doc ID
+                "name": auth_data["name"],
+                "email": auth_data["email"],
+                "display_name": auth_data["name"],
                 "role": "buyer",
                 "created_at": SERVER_TIMESTAMP,
                 "updated_at": SERVER_TIMESTAMP
             }
             db.collection("users").document(uid).set(user_data)
-            # Fetch again to get the data
+            logger.info(f"[AUTH FIX] Real Email/Name mapped for UID: {uid}")
+            # Fetch again to get the server-generated timestamps
             doc = db.collection("users").document(uid).get()
-        
+        else:
+            # [AUTH FIX] Heal existing placeholder records on read
+            data = doc.to_dict()
+            needs_heal = False
+            heal_data = {}
+            
+            # Check for placeholder email or "New User" name
+            current_email = data.get("email") or ""
+            current_name = data.get("name") or ""
+            
+            if current_email.endswith("@placeholder.com") or current_name == "New User" or not current_name:
+                auth_data = _resolve_auth_user_data(uid)
+                heal_data["email"] = auth_data["email"]
+                heal_data["name"] = auth_data["name"]
+                heal_data["display_name"] = auth_data["name"]
+                heal_data["updated_at"] = SERVER_TIMESTAMP
+                needs_heal = True
+
+            if needs_heal:
+                db.collection("users").document(uid).update(heal_data)
+                logger.info(f"[AUTH FIX] Real Email/Name mapped for UID: {uid}")
+                doc = db.collection("users").document(uid).get()
+
         data = doc.to_dict()
-        data["id"] = doc.id # Assign doc ID directly
+        data["id"] = doc.id  # Assign doc ID directly
         # Handle timestamp conversion
         for key in ["created_at", "updated_at"]:
             if data.get(key) and hasattr(data[key], "isoformat"):
                 data[key] = data[key].isoformat()
-        
+
         return data
     except Exception as e:
-        print(f"[USER ERROR] Fetch failed: {e}")
+        logger.error(f"[USER ERROR] Fetch failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{uid}")

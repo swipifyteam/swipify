@@ -15,6 +15,7 @@ from app.models.order import (
 from app.models.shipping import SelectedShippingOption
 from app.utils.notifications import create_notification
 from app.services.voucher_service import increment_voucher_usage_service
+from app.services.inventory_service import batch_deduct_order_stock_service
 
 
 def get_current_time_iso() -> str:
@@ -40,15 +41,10 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
 
         subtotal = order_data.total_price - (order_data.discount_amount or 0.0)
         
-        distance_km = 5.0 # MOCK distance
-        weight_kg = sum([item.quantity * 0.5 for item in order_data.items])
-        shipping_fee = 40.0 + (8.0 * distance_km) + (5.0 * weight_kg)
-        if shipping_fee < 120.0:
-            shipping_fee = 120.0
-        if shipping_fee > 250.0:
-            shipping_fee = 250.0
-            
-        shipping_fee = round(shipping_fee, 2)
+        # Use the provided shipping fee from the selection (passed from frontend/payment session)
+        # If it's 0.0 and we want to allow it, that's fine.
+        shipping_fee = order_data.selected_shipping_option.fee
+        
         total_order_price = round(subtotal + shipping_fee, 2)
         
         # Override the fee inside the snapshot so UI matches history
@@ -101,24 +97,17 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
             "NEW_ORDER"
         )
 
-        # 🚨 PART 5 FIX: CLEAR THE CART AFTER CHECKOUT 🚨
-        # We delete all items from this user's cart sub-collection
-        # This keeps the UI clean and prevents double ordering the same items
+        # 🚨 PART 5 FIX: CLEAR THE CART FOR ORDERED ITEMS ONLY 🚨
         try:
-            cart_ref = (
-                db.collection("carts").document(order_data.user_id).collection("items")
-            )
-            cart_docs = cart_ref.get()
+            cart_ref = db.collection("carts").document(order_data.user_id).collection("items")
+            ordered_product_ids = [item.product_id for item in order_data.items]
+            
+            for product_id in ordered_product_ids:
+                cart_ref.document(product_id).delete()
 
-            # Batch delete would be more efficient, but manual delete is fine for typical cart sizes
-            for doc in cart_docs:
-                # OPTIONAL: ONLY remove the items that were actually ordered
-                # For simplicity here, we assume a total checkout (full cart)
-                doc.reference.delete()
-
-            print(f"[CART CLEARED] Successfully removed cart items for user {order_data.user_id}")
+            print(f"[CART CLEANUP] Removed {len(ordered_product_ids)} items for user {order_data.user_id}")
         except Exception as cart_err:
-            print(f"[CART CLEANUP ERROR] Non-fatal, but could not clear cart: {cart_err}")
+            print(f"[CART CLEANUP ERROR] Non-fatal: {cart_err}")
 
         return order_dict
 
@@ -312,6 +301,12 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
         # Update order status
         order_ref.update(update_data)
 
+        # 🚨 STOCK DEDUCTION: Deduct stock when DELIVERED 🚨
+        if new_status == OrderStatus.DELIVERED:
+            print(f"[STOCK] Order {order_id} DELIVERED. Deducting stock for items.")
+            items = order_doc.get("items", [])
+            batch_deduct_order_stock_service(items)
+
         # Log status transition
         db.collection("orders").document(order_id).collection("status_history").add(
             {
@@ -328,6 +323,7 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
             OrderStatus.PROCESSING.value: "Order Processing 📦",
             OrderStatus.SHIPPED.value: "Order Shipped 🚚",
             OrderStatus.DELIVERED.value: "Order Delivered 🎁",
+            OrderStatus.COMPLETED.value: "Order Completed! ✨",
             OrderStatus.CANCELLED.value: "Order Cancelled ❌",
         }
         if new_status.value in buyer_titles:
@@ -360,8 +356,18 @@ def update_order_payment_service(order_id: str, new_payment_status: str) -> dict
         final_doc["id"] = order_id
         return final_doc
     except Exception as e:
-        print(f"[UPDATE PAYMENT ERROR] {str(e)}")
+        print(f"[UPDATE PAYMENT STATUS ERROR] {str(e)}")
         raise e
+
+def get_order_by_id(order_id: str) -> dict:
+    """Fetch an order by its ID."""
+    doc = db.collection("orders").document(order_id).get()
+    if not doc.exists:
+        raise ValueError("Order not found")
+    
+    order = doc.to_dict()
+    order["id"] = doc.id
+    return order
 
 import io
 import csv
