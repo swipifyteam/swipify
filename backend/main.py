@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Import all route modules
-from app.routes import products, categories, cart, vouchers, notifications, engagement, users, orders, address, shipping, reviews, admin
+from app.routes import products, categories, cart, vouchers, notifications, users, orders, address, shipping, reviews, admin, support
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
@@ -55,6 +55,7 @@ app.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(seller_vouchers.router, tags=["Seller Vouchers"])
 app.include_router(marketing.router)
 app.include_router(admin.router, prefix="/admin", tags=["Admin Dashboard"])
+app.include_router(support.router, prefix="/support", tags=["Support Centre"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
 import uuid
 

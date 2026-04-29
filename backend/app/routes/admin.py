@@ -365,6 +365,87 @@ async def reject_seller_application(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from pydantic import BaseModel
+
+class SellerDecisionRequest(BaseModel):
+    action: str
+    storeName: str | None = None
+    reason: str | None = None
+
+@router.put("/seller-applications/{app_id}/decision")
+async def seller_application_decision(
+    app_id: str,
+    request: SellerDecisionRequest,
+    user: dict = Depends(require_admin)
+):
+    try:
+        # 1. Fetch application
+        app_ref = db.collection("seller_applications").document(app_id)
+        app_doc = app_ref.get()
+        
+        if not app_doc.exists:
+            # Try searching by id field if document ID is different
+            docs = db.collection("seller_applications").where("id", "==", app_id).limit(1).get()
+            if len(docs) == 0:
+                raise HTTPException(status_code=404, detail="Application not found")
+            app_ref = docs[0].reference
+            app_doc = docs[0]
+            
+        app_data = app_doc.to_dict()
+        user_id = app_data.get("user_id") or app_data.get("userId")
+        
+        # 2. Validate status
+        if app_data.get("status") != "pending":
+            raise HTTPException(status_code=400, detail="Already processed")
+
+        if request.action == "approve":
+            if not request.storeName:
+                raise HTTPException(status_code=400, detail="storeName required for approval")
+                
+            # 3. APPROVE FLOW
+            # Update application
+            app_ref.update({"status": "approved", "updated_at": SERVER_TIMESTAMP})
+            
+            # Update user role
+            if user_id:
+                db.collection("users").document(user_id).update({
+                    "role": "seller",
+                    "updatedAt": SERVER_TIMESTAMP
+                })
+                
+                # Create/Update seller profile
+                db.collection("sellers").document(user_id).set({
+                    "userId": user_id,
+                    "storeName": request.storeName,
+                    "status": "approved",
+                    "created_at": SERVER_TIMESTAMP
+                }, merge=True)
+                
+                print(f"[SELLER APPROVED] {user_id}")
+            
+            return {"success": True, "message": "Seller approved successfully"}
+
+        elif request.action == "reject":
+            # 4. REJECT FLOW
+            # Update application
+            app_ref.update({
+                "status": "rejected", 
+                "rejection_reason": request.reason,
+                "updated_at": SERVER_TIMESTAMP
+            })
+            
+            if user_id:
+                print(f"[SELLER REJECTED] {user_id}")
+                
+            return {"success": True, "message": "Seller rejected"}
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # MODULE 4 - PRODUCT MODERATION
 @router.get("/products")
 async def list_products(

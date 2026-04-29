@@ -15,3 +15,4 @@ class UserProfile(BaseModel):
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
+    device_token: Optional[str] = None

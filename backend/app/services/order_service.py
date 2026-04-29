@@ -14,6 +14,7 @@ from app.models.order import (
 )
 from app.models.shipping import SelectedShippingOption
 from app.utils.notifications import create_notification
+from app.utils.email_service import send_order_status_email
 from app.services.voucher_service import increment_voucher_usage_service
 from app.services.inventory_service import batch_deduct_order_stock_service
 
@@ -21,6 +22,22 @@ from app.services.inventory_service import batch_deduct_order_stock_service
 def get_current_time_iso() -> str:
     """Utility to get the current timestamp in ISO 8601 format."""
     return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_order_timestamps(order: dict) -> dict:
+    """Convert any Firestore DatetimeWithNanoseconds fields to ISO strings.
+
+    Firestore can return native datetime objects when SERVER_TIMESTAMP is used.
+    Pydantic's OrderResponse expects str for created_at / updated_at.
+    """
+    for key in ("created_at", "updated_at"):
+        val = order.get(key)
+        if val is not None and not isinstance(val, str):
+            try:
+                order[key] = val.isoformat()
+            except Exception:
+                order[key] = str(val)
+    return order
 
 
 def create_order_service(order_data: OrderCreateRequest) -> dict:
@@ -206,6 +223,7 @@ def get_user_orders_service(user_id: str) -> list:
         for doc in docs:
             order = doc.to_dict()
             order["id"] = doc.id
+            _normalize_order_timestamps(order)
             orders.append(order)
 
         # Reverse chronological order (simple list sort)
@@ -227,6 +245,7 @@ def get_seller_orders_service(seller_id: str) -> list:
         for doc in docs_seller:
             order = doc.to_dict()
             order["id"] = doc.id
+            _normalize_order_timestamps(order)
             order_map[doc.id] = order
 
         orders = list(order_map.values())
@@ -332,6 +351,15 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
                 msg += f" Tracking: {update_data.get('tracking_number')}"
             create_notification(buyer_id, buyer_titles[new_status.value], msg, "ORDER_UPDATE")
 
+        # 🚨 EMAIL: Send email notification for shipped/delivered 🚨
+        send_order_status_email(
+            user_id=buyer_id,
+            order_id=order_id,
+            new_status=new_status.value,
+            tracking_number=update_data.get("tracking_number"),
+            logistic_provider=update_data.get("logistic_provider"),
+        )
+
         final_doc = order_ref.get().to_dict()
         final_doc["id"] = order_id
         return final_doc
@@ -359,14 +387,31 @@ def update_order_payment_service(order_id: str, new_payment_status: str) -> dict
         print(f"[UPDATE PAYMENT STATUS ERROR] {str(e)}")
         raise e
 
+def get_order_status_history(order_id: str) -> list:
+    """Fetch the status_history subcollection for an order."""
+    try:
+        docs = (
+            db.collection("orders")
+            .document(order_id)
+            .collection("status_history")
+            .order_by("timestamp")
+            .get()
+        )
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        print(f"[STATUS HISTORY ERROR] {e}")
+        return []
+
+
 def get_order_by_id(order_id: str) -> dict:
-    """Fetch an order by its ID."""
+    """Fetch an order by its ID, including its status_history."""
     doc = db.collection("orders").document(order_id).get()
     if not doc.exists:
         raise ValueError("Order not found")
     
     order = doc.to_dict()
     order["id"] = doc.id
+    order["status_history"] = get_order_status_history(order_id)
     return order
 
 import io
