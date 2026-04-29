@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     PAYMONGO_PUBLIC_KEY: str = ""
     PAYMONGO_SECRET_KEY: str = ""
     PAYMONGO_WEBHOOK_SECRET: str = ""
+    SMS_KEY: str = ""
 
     # Firebase
     FIREBASE_SERVICE_ACCOUNT_PATH: str = "serviceAccountKey.json"

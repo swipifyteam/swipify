@@ -139,6 +139,41 @@ async def get_user_orders(uid: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/by-phone/{phone_number}")
+async def get_user_by_phone(phone_number: str):
+    """Search for a user by their phone number. Returns public info if found."""
+    try:
+        # Search for user in Firestore
+        docs = db.collection("users").where("phone_number", "==", phone_number.strip()).limit(1).get()
+        
+        if not docs:
+            raise HTTPException(status_code=404, detail="No user found with this phone number")
+            
+        user_doc = docs[0]
+        user_data = user_doc.to_dict()
+        
+        # Return minimal data for security
+        return {
+            "uid": user_doc.id,
+            "name": user_data.get("name", "User"),
+            "email_masked": _mask_email(user_data.get("email", ""))
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[USER ERROR] Phone lookup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def _mask_email(email: str) -> str:
+    if not email or "@" not in email:
+        return "***"
+    parts = email.split("@")
+    name = parts[0]
+    domain = parts[1]
+    if len(name) <= 2:
+        return f"*@{domain}"
+    return f"{name[0]}***{name[-1]}@{domain}"
+
 @router.post("/upload-profile-picture")
 async def upload_profile_picture(user_id: str = Form(...), file: UploadFile = File(...)):
     """Uploads a profile picture to Cloudinary and updates Firestore."""
