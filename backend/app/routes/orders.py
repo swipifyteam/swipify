@@ -7,7 +7,8 @@ from app.models.order import (
     OrderResponse,
     BuyNowRequest,
     CalculateTotalRequest,
-    CalculateTotalResponse
+    CalculateTotalResponse,
+    StatusHistoryEntry
 )
 from app.services.order_service import (
     create_order_service,
@@ -16,7 +17,9 @@ from app.services.order_service import (
     get_seller_orders_service,
     calculate_seller_earnings_service,
     update_order_status_service,
-    update_order_payment_service
+    update_order_payment_service,
+    get_order_by_id,
+    get_order_status_history
 )
 from firebase_client import db
 
@@ -178,4 +181,34 @@ async def update_order_payment(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"[ORDERS API] ❌ Error updating payment status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/detail/{order_id}", response_model=OrderResponse)
+async def get_order_detail(
+    order_id: str = Path(..., description="The ID of the order")
+):
+    """Get full order details including status history and tracking."""
+    print(f"[ORDERS API] GET /orders/{order_id}")
+    try:
+        order = get_order_by_id(order_id)
+        return OrderResponse(**order)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"[ORDERS API] ❌ Error fetching order detail: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/detail/{order_id}/tracking", response_model=List[StatusHistoryEntry])
+async def get_order_tracking(
+    order_id: str = Path(..., description="The ID of the order")
+):
+    """Get tracking / status history for an order."""
+    print(f"[ORDERS API] GET /orders/{order_id}/tracking")
+    try:
+        history = get_order_status_history(order_id)
+        return history
+    except Exception as e:
+        print(f"[ORDERS API] ❌ Error fetching tracking: {e}")
         raise HTTPException(status_code=500, detail=str(e))

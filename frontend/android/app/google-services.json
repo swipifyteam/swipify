@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "663414398790",
+    "firebase_url": "https://smartbez-default-rtdb.firebaseio.com",
+    "project_id": "smartbez",
+    "storage_bucket": "smartbez.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:663414398790:android:cf842dfb600d829e180f47",
+        "android_client_info": {
+          "package_name": "com.example.swipify"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "663414398790-aud6n3kviito1nlqenbhhu9b5ufmvn0c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-fzIkOxhofGGktXukUE7IpldHuvMxRXs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "663414398790-aud6n3kviito1nlqenbhhu9b5ufmvn0c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "663414398790-2cr1jm8dsoi91h1lk0ql7mr9m829ae1l.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.smartbez"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
