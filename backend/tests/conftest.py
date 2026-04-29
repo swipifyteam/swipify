@@ -14,7 +14,11 @@ def mock_firebase_auth():
 
 @pytest.fixture
 def mock_db():
-    with patch("firebase_client.db") as mock:
+    """Patch db in all modules that import it directly via `from firebase_client import db`."""
+    mock = MagicMock()
+    with patch("firebase_client.db", mock), \
+         patch("app.utils.auth_utils.db", mock), \
+         patch("app.routes.admin.db", mock):
         yield mock
 
 @pytest.fixture
