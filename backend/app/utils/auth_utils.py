@@ -9,7 +9,7 @@ def get_current_user_id(authorization: str = Header(None)) -> str:
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header missing")
-    
+
     parts = authorization.split(" ")
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(status_code=401, detail="Invalid Authorization header format. Expected 'Bearer <token>'")

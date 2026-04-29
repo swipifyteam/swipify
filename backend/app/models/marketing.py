@@ -12,6 +12,7 @@ class FlashSaleCreateRequest(BaseModel):
     stock_limit: int = Field(..., ge=1)
     is_active: bool = True
 
+
 class FlashSaleResponse(BaseModel):
     id: str
     seller_id: str
@@ -24,6 +25,7 @@ class FlashSaleResponse(BaseModel):
     is_active: bool
     created_at: str
 
+
 # --- BUNDLE DEALS ---
 class BundleDealCreateRequest(BaseModel):
     seller_id: str
@@ -34,6 +36,7 @@ class BundleDealCreateRequest(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_active: bool = True
+
 
 class BundleDealResponse(BaseModel):
     id: str
@@ -47,12 +50,14 @@ class BundleDealResponse(BaseModel):
     is_active: bool
     created_at: str
 
+
 # --- LOYALTY POINTS ---
 class LoyaltyConfigSaveRequest(BaseModel):
     seller_id: str
     points_per_peso: float = Field(default=0.01, ge=0)
     min_redeem_points: int = Field(default=10, ge=0)
     is_enabled: bool = True
+
 
 class LoyaltyConfigResponse(BaseModel):
     seller_id: str

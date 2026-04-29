@@ -25,4 +25,3 @@ def mock_db():
 def client():
     from main import app
     return TestClient(app)
-
