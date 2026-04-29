@@ -67,6 +67,13 @@ class BuyNowRequest(BaseModel):
     selected_shipping_option: SelectedShippingOption
     shipping_address: AddressSnapshot
 
+class StatusHistoryEntry(BaseModel):
+    timestamp: str
+    old_status: Optional[str] = None
+    new_status: str
+    updated_by: Optional[str] = "system"
+    notes: Optional[str] = None
+
 class OrderResponse(BaseModel):
     id: str
     user_id: str
@@ -83,6 +90,7 @@ class OrderResponse(BaseModel):
     tracking_number: Optional[str] = None
     discount_amount: Optional[float] = 0.0
     voucher_id: Optional[str] = None
+    status_history: Optional[List[StatusHistoryEntry]] = None
 
 class CalculateTotalRequest(BaseModel):
     distance_km: float
