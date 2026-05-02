@@ -98,7 +98,7 @@ class _ReviewCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                review.productName,
+                review.productName.isNotEmpty ? review.productName : 'Product Review',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               Text(
