@@ -14,7 +14,8 @@ import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/services/review_service.dart';
 import 'package:swipify/screens/seller_shop_screen.dart';
 import 'package:swipify/screens/checkout_screen.dart';
-
+import 'package:swipify/services/chat_service.dart';
+import 'package:swipify/screens/chat_screen.dart';
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
@@ -449,7 +450,79 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
       child: Row(
         children: [
-          _BottomActionBtn(icon: Icons.chat_bubble_outline_rounded, label: 'Chat', onTap: () {}),
+          _BottomActionBtn(
+            icon: Icons.chat_bubble_outline_rounded,
+            label: 'Chat',
+            onTap: () async {
+              final uid = context.read<AuthProvider>().user?.uid;
+              if (uid == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please login to chat')),
+                );
+                return;
+              }
+              
+              if (uid == widget.product.shopId || uid == widget.product.sellerId) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('You cannot chat with yourself')),
+                );
+                return;
+              }
+
+              // Show loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(child: CircularProgressIndicator()),
+              );
+
+              try {
+                final sellerId = widget.product.sellerId.isNotEmpty ? widget.product.sellerId : widget.product.shopId;
+                final chatId = await ChatService().createOrGetChat(
+                  buyerId: uid,
+                  sellerId: sellerId,
+                  productId: widget.product.id,
+                  productName: widget.product.name,
+                  productImage: widget.product.primaryImage,
+                );
+
+                // Auto-send initial message if chat is new
+                final messages = await ChatService().getMessagesOnce(chatId);
+                if (messages.isEmpty && mounted) {
+                  final senderName = context.read<AuthProvider>().user?.displayName ?? 'User';
+                  await ChatService().sendMessage(
+                    chatId: chatId,
+                    senderId: uid,
+                    receiverId: sellerId,
+                    message: "Hi, I'm interested in this product: ${widget.product.name}",
+                    type: 'text',
+                    senderName: senderName,
+                  );
+                }
+
+                if (mounted) {
+                  Navigator.pop(context); // hide loading
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                        chatId: chatId,
+                        otherUserId: sellerId,
+                        otherUserName: widget.product.shopName,
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context); // hide loading
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to open chat: $e')),
+                  );
+                }
+              }
+            },
+          ),
           const SizedBox(width: 20),
           _BottomActionBtn(
             icon: Icons.storefront_outlined, 

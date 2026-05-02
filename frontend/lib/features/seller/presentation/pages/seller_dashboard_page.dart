@@ -20,6 +20,7 @@ import 'package:swipify/features/seller/presentation/pages/marketing/bundle_deal
 import 'package:swipify/features/seller/presentation/pages/marketing/loyalty_points_page.dart';
 import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
+import 'package:swipify/screens/chat_list_screen.dart';
 
 // ─── Colour palette ──────────────────────────────────────────────────────────
 const _kPrimary    = Color(0xFF36454F); // Charcoal
@@ -49,12 +50,13 @@ const _kPurple     = Color(0xFF8B5CF6);
 const _kRed        = Color(0xFFE74C3C);
 
 // ─── Sidebar items ────────────────────────────────────────────────────────────
-enum _NavItem { overview, products, orders, marketing, finance, settings }
+enum _NavItem { overview, products, orders, messages, marketing, finance, settings }
 
 const _navDefs = [
   (_NavItem.overview,   Icons.dashboard_rounded,      'Overview'),
   (_NavItem.products,   Icons.inventory_2_rounded,    'Products'),
   (_NavItem.orders,     Icons.receipt_long_rounded,   'Orders'),
+  (_NavItem.messages,   Icons.chat_bubble_outline_rounded, 'Messages'),
   (_NavItem.marketing,  Icons.campaign_rounded,       'Marketing'),
   (_NavItem.finance,    Icons.account_balance_wallet_rounded, 'Finance'),
   (_NavItem.settings,   Icons.settings_rounded,       'Settings'),
@@ -108,6 +110,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
       case _NavItem.overview:   return const _OverviewModule();
       case _NavItem.products:   return const _ProductsModule();
       case _NavItem.orders:     return const _OrdersModule();
+      case _NavItem.messages:   return const ChatListScreen(showAppBar: false);
       case _NavItem.marketing:  return const _MarketingModule();
       case _NavItem.finance:    return const _FinanceModule();
       case _NavItem.settings:   return const _SettingsModule();

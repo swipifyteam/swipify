@@ -22,7 +22,8 @@ import 'package:swipify/widgets/product_card.dart';
 import 'package:swipify/widgets/banner_carousel.dart';
 import 'package:swipify/widgets/category_chip.dart';
 import 'package:swipify/widgets/voucher_card.dart';
-
+import 'package:swipify/screens/chat_list_screen.dart';
+import 'package:swipify/services/chat_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -229,11 +230,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          // Chat button — bounded width
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: const _ChatButton(),
+          ),
           // Notification bell — bounded width to prevent overflow
           SizedBox(
             width: 40,
             height: 40,
-            child: _NotificationBell(),
+            child: const _NotificationBell(),
           ),
           // Cart button — bounded width
           SizedBox(
@@ -740,5 +747,78 @@ class _NotificationBellState extends State<_NotificationBell> {
       ),
     );
   });
+}
+
+class _ChatButton extends StatefulWidget {
+  const _ChatButton();
+  @override
+  State<_ChatButton> createState() => _ChatButtonState();
+}
+
+class _ChatButtonState extends State<_ChatButton> {
+  int _unreadCount = 0;
+  StreamSubscription? _chatSub;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final uid = Provider.of<AuthProvider>(context, listen: false).user?.uid;
+    if (uid != null) {
+      _chatSub?.cancel();
+      _chatSub = ChatService().getUserChats(uid).listen((chats) {
+        int unread = 0;
+        for (var chat in chats) {
+          unread += (chat.unreadCount[uid] ?? 0);
+        }
+        if (mounted) {
+          setState(() => _unreadCount = unread);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _chatSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        final uid = context.read<AuthProvider>().user?.uid;
+        if (uid == null) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please login to chat')));
+          return;
+        }
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatListScreen()));
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.chat_bubble_outline_rounded, color: SwipifyTheme.primaryColor, size: 22),
+          if (_unreadCount > 0)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(color: SwipifyTheme.accentColor, shape: BoxShape.circle),
+                child: Center(
+                  child: Text(
+                    '${_unreadCount > 9 ? "9+" : _unreadCount}',
+                    style: SwipifyTheme.badge.copyWith(color: Colors.white, fontSize: 7),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 

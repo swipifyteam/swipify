@@ -16,6 +16,7 @@ import 'package:swipify/core/theme.dart';
 import 'package:intl/intl.dart';
 import 'package:swipify/features/seller/presentation/pages/seller_voucher_page.dart';
 import 'package:swipify/features/seller/presentation/pages/edit_product_page.dart';
+import 'package:swipify/screens/chat_list_screen.dart';
 
 class SellerDashboard extends StatefulWidget {
   const SellerDashboard({super.key});
@@ -30,7 +31,7 @@ class _SellerDashboardState extends State<SellerDashboard> with SingleTickerProv
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshData());
   }
 
@@ -76,6 +77,7 @@ class _SellerDashboardState extends State<SellerDashboard> with SingleTickerProv
             Tab(text: "Overview"),
             Tab(text: "Orders"),
             Tab(text: "Products"),
+            Tab(text: "Messages"),
           ],
         ),
       ),
@@ -86,6 +88,7 @@ class _SellerDashboardState extends State<SellerDashboard> with SingleTickerProv
           _buildOverviewTab(seller),
           _buildOrdersTab(seller),
           _buildProductsTab(seller),
+          const ChatListScreen(showAppBar: false),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -148,6 +151,7 @@ class _SellerDashboardState extends State<SellerDashboard> with SingleTickerProv
                   _drawerItem(Icons.dashboard_outlined, "Overview", 0),
                   _drawerItem(Icons.inventory_2_outlined, "Products", 2),
                   _drawerItem(Icons.receipt_long_outlined, "Orders", 1),
+                  _drawerItem(Icons.chat_bubble_outline_rounded, "Messages", 3),
                   const Padding(padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), child: Divider()),
                   _drawerItem(Icons.campaign_outlined, "Marketing", -1),
                   _drawerItem(Icons.account_balance_wallet_outlined, "Finance", -1),
@@ -306,7 +310,9 @@ class _SellerDashboardState extends State<SellerDashboard> with SingleTickerProv
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const SellerVoucherPage()));
                 }),
                 _managementCard("Analytics", "Growth", Icons.auto_graph_rounded, Colors.blueAccent, () {}),
-                _managementCard("Messages", "Customer Chat", Icons.chat_bubble_outline_rounded, Colors.orangeAccent, () {}),
+                _managementCard("Messages", "Customer Chat", Icons.chat_bubble_outline_rounded, Colors.orangeAccent, () {
+                  _tabController.animateTo(3);
+                }),
                 _managementCard("Reviews", "Overall Rating", Icons.star_outline_rounded, Colors.amber, () {}),
               ],
             ),

@@ -28,9 +28,29 @@ def upload_image_to_cloudinary(file_bytes: bytes, filename: str, folder: str = "
             overwrite=True,
             resource_type="image"
         )
-        url = upload_result.get("secure_url")
-        print(f"[UPLOAD] Image URL: {url}")
         return url
     except Exception as e:
         print(f"[UPLOAD] Error uploading to Cloudinary: {e}")
+        raise e
+
+def upload_media_to_cloudinary(file_bytes: bytes, filename: str, folder: str = "swipify_chat"):
+    """
+    Uploads an image or video raw bytes to Cloudinary.
+    Uses resource_type="auto" so Cloudinary detects if it's an image or video.
+    Returns the secure URL.
+    """
+    try:
+        print(f"[UPLOAD] Uploading media to Cloudinary: {filename}")
+        upload_result = cloudinary.uploader.upload(
+            file_bytes,
+            public_id=filename.split('.')[0] if '.' in filename else filename,
+            folder=folder,
+            overwrite=True,
+            resource_type="auto"
+        )
+        url = upload_result.get("secure_url")
+        print(f"[UPLOAD] Media URL: {url}")
+        return url
+    except Exception as e:
+        print(f"[UPLOAD] Error uploading media to Cloudinary: {e}")
         raise e
