@@ -16,6 +16,8 @@ class ProductModel {
   final int likeCount;
   final int viewCount;
   final int followerCount;
+  final double averageRating;
+  final int totalReviews;
 
   const ProductModel({
     required this.id,
@@ -32,6 +34,8 @@ class ProductModel {
     this.likeCount = 0,
     this.viewCount = 0,
     this.followerCount = 0,
+    this.averageRating = 0.0,
+    this.totalReviews = 0,
     this.shopId = '',
     this.shopName = '',
     this.isPublished = true,
@@ -58,6 +62,8 @@ class ProductModel {
       likeCount: (json['like_count'] ?? json['likeCount'] ?? 0).toInt(),
       viewCount: (json['view_count'] ?? json['viewCount'] ?? 0).toInt(),
       followerCount: (json['follower_count'] ?? json['followerCount'] ?? 0).toInt(),
+      averageRating: (json['average_rating'] ?? json['averageRating'] ?? json['rating'] ?? 0.0).toDouble(),
+      totalReviews: (json['total_reviews'] ?? json['totalReviews'] ?? 0).toInt(),
       shopId: json['shopId'] ?? json['shop_id'] ?? '',
       shopName: json['shopName'] ?? json['shop_name'] ?? '',
       isPublished: json['is_published'] ?? true,
@@ -87,6 +93,8 @@ class ProductModel {
       'like_count': likeCount,
       'view_count': viewCount,
       'follower_count': followerCount,
+      'average_rating': averageRating,
+      'total_reviews': totalReviews,
       'shopId': shopId,
       'shopName': shopName,
       'is_published': isPublished,
