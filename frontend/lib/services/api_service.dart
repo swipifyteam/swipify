@@ -428,6 +428,55 @@ class ApiService {
     }
   }
 
+  /// Upload chat media (image or video)
+  static Future<String> uploadChatMedia(
+    List<int> bytes,
+    String filename,
+  ) async {
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/chats/upload-media'),
+    );
+
+    var multipartFile = http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+    );
+    request.files.add(multipartFile);
+
+    var response = await request.send();
+    if (response.statusCode == 200) {
+      final respStr = await response.stream.bytesToString();
+      final data = json.decode(respStr);
+      return data['media_url'];
+    } else {
+      final respStr = await response.stream.bytesToString();
+      final error = json.decode(respStr);
+      throw Exception(error['detail'] ?? 'Failed to upload chat media');
+    }
+  }
+
+  /// Trigger push notification for a new chat message
+  static Future<void> sendChatNotification({
+    required String receiverId,
+    required String senderName,
+    required String message,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/chats/notify'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'receiver_id': receiverId,
+        'sender_name': senderName,
+        'message': message,
+      }),
+    );
+    if (response.statusCode != 200) {
+      debugPrint('[API] sendChatNotification failed: ${response.body}');
+    }
+  }
+
   /// Upload a seller document using multipart/form-data.
   static Future<String> uploadSellerDocument(
     String sellerId,
