@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/models/product_model.dart';
+import 'package:swipify/models/review_model.dart';
 import 'package:swipify/features/cart/service/cart_provider.dart';
 import 'package:swipify/features/cart/model/cart_item_model.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
@@ -28,7 +30,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
   String _selectedColor = 'Default';
   bool _addingToCart = false;
-  late Future<List<Map<String, dynamic>>> _futureReviews;
+  late Future<List<ReviewModel>> _futureReviews;
   bool _descExpanded = false;
   final PageController _imgCtrl = PageController();
   int _currentImg = 0;
@@ -36,7 +38,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _futureReviews = ReviewService.getReviews(widget.product.id);
+    _futureReviews = ReviewService.getProductReviews(widget.product.id);
     if (widget.product.colors.isNotEmpty) _selectedColor = widget.product.colors.first;
   }
 
@@ -300,8 +302,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           const Spacer(),
           Row(children: [
             const Icon(Icons.star_rounded, color: SwipifyTheme.starColor, size: 18),
-            Text(' ${p.rating.toStringAsFixed(1)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: SwipifyTheme.textPrimary)),
-            Text(' (128 reviews)', style: GoogleFonts.inter(fontSize: 12, color: SwipifyTheme.textSecondary)),
+            Text(' ${p.averageRating > 0 ? p.averageRating.toStringAsFixed(1) : p.rating.toStringAsFixed(1)}', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: SwipifyTheme.textPrimary)),
+            Text(' (${p.totalReviews} reviews)', style: GoogleFonts.inter(fontSize: 12, color: SwipifyTheme.textSecondary)),
           ]),
         ]),
         const SizedBox(height: 16),
@@ -404,38 +406,165 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildReviewsSection() {
+    final p = widget.product;
+    final avgRating = p.averageRating > 0 ? p.averageRating : p.rating;
+    final totalReviews = p.totalReviews;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 40),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(color: SwipifyTheme.cardColor, borderRadius: BorderRadius.circular(24)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
         Row(children: [
           Expanded(child: Text('Customer Reviews', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: SwipifyTheme.textPrimary))),
-          Text('View All', style: GoogleFonts.inter(color: SwipifyTheme.accentColor, fontSize: 13, fontWeight: FontWeight.w600)),
         ]),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+
+        // Rating Summary (trust backend values)
         Row(children: [
           Column(children: [
-            Text('4.8', style: GoogleFonts.inter(fontSize: 48, fontWeight: FontWeight.w900, color: SwipifyTheme.textPrimary)),
-            Row(children: List.generate(5, (i) => Icon(Icons.star_rounded, color: SwipifyTheme.starColor, size: 16))),
+            Text(avgRating.toStringAsFixed(1), style: GoogleFonts.inter(fontSize: 48, fontWeight: FontWeight.w900, color: SwipifyTheme.textPrimary)),
+            Row(children: List.generate(5, (i) {
+              if (i < avgRating.floor()) {
+                return const Icon(Icons.star_rounded, color: SwipifyTheme.starColor, size: 16);
+              } else if (i < avgRating.ceil() && avgRating % 1 >= 0.3) {
+                return const Icon(Icons.star_half_rounded, color: SwipifyTheme.starColor, size: 16);
+              }
+              return Icon(Icons.star_rounded, color: SwipifyTheme.starColor.withValues(alpha: 0.2), size: 16);
+            })),
             const SizedBox(height: 4),
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: _futureReviews,
-              builder: (context, snap) {
-                final count = snap.data?.length ?? 128;
-                return Text('$count reviews', style: GoogleFonts.inter(color: SwipifyTheme.textSecondary, fontSize: 11));
-              },
-            ),
+            Text('$totalReviews reviews', style: GoogleFonts.inter(color: SwipifyTheme.textSecondary, fontSize: 11)),
           ]),
           const SizedBox(width: 32),
-          Expanded(child: Column(children: [
-            _StarBar(stars: 5, pct: 0.85),
-            _StarBar(stars: 4, pct: 0.10),
-            _StarBar(stars: 3, pct: 0.03),
-            _StarBar(stars: 2, pct: 0.01),
-            _StarBar(stars: 1, pct: 0.01),
+          // Star distribution calculated from actual reviews
+          Expanded(child: FutureBuilder<List<ReviewModel>>(
+            future: _futureReviews,
+            builder: (context, snap) {
+              final reviews = snap.data ?? [];
+              return Column(children: List.generate(5, (i) {
+                final star = 5 - i;
+                final count = reviews.where((r) => r.rating.round() == star).length;
+                final pct = reviews.isNotEmpty ? count / reviews.length : 0.0;
+                return _StarBar(stars: star, pct: pct);
+              }));
+            },
+          )),
+        ]),
+
+        const SizedBox(height: 24),
+        const Divider(height: 1),
+        const SizedBox(height: 16),
+
+        // Review List
+        FutureBuilder<List<ReviewModel>>(
+          future: _futureReviews,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ));
+            }
+            if (snap.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Failed to load reviews', style: GoogleFonts.inter(color: SwipifyTheme.textSecondary)),
+              );
+            }
+            final reviews = snap.data ?? [];
+            if (reviews.isEmpty) {
+              return _buildEmptyReviews();
+            }
+            return Column(
+              children: reviews.map((r) => _buildReviewCard(r)).toList(),
+            );
+          },
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildEmptyReviews() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Center(child: Column(children: [
+        Icon(Icons.rate_review_outlined, size: 48, color: SwipifyTheme.textMuted.withValues(alpha: 0.4)),
+        const SizedBox(height: 12),
+        Text('No reviews yet', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: SwipifyTheme.textSecondary)),
+        const SizedBox(height: 4),
+        Text('Be the first to review this product!', style: GoogleFonts.inter(fontSize: 12, color: SwipifyTheme.textMuted)),
+      ])),
+    );
+  }
+
+  Widget _buildReviewCard(ReviewModel review) {
+    debugPrint('[REVIEW RENDERED] id=${review.id}');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // User info + date
+        Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: SwipifyTheme.accentColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(child: Text(
+              review.userName.isNotEmpty ? review.userName[0].toUpperCase() : '?',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: SwipifyTheme.accentColor, fontSize: 14),
+            )),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(review.userName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: SwipifyTheme.textPrimary)),
+            Text(DateFormat('MMM d, yyyy').format(review.createdAt), style: GoogleFonts.inter(fontSize: 11, color: SwipifyTheme.textMuted)),
           ])),
         ]),
+        const SizedBox(height: 8),
+
+        // Star rating
+        Row(children: List.generate(5, (i) => Icon(
+          i < review.rating.round() ? Icons.star_rounded : Icons.star_border_rounded,
+          color: SwipifyTheme.starColor, size: 16,
+        ))),
+        const SizedBox(height: 8),
+
+        // Comment
+        if (review.comment.isNotEmpty)
+          Text(review.comment, style: GoogleFonts.inter(fontSize: 13, color: SwipifyTheme.textSecondary, height: 1.5)),
+
+        // Review images — horizontally scrollable
+        if (review.imageUrls.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 80,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: review.imageUrls.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => _showZoomedImage(review.imageUrls[i]),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: CachedNetworkImage(
+                    imageUrl: review.imageUrls[i],
+                    width: 80, height: 80, fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(width: 80, height: 80, color: SwipifyTheme.backgroundColor),
+                    errorWidget: (_, __, ___) => Container(
+                      width: 80, height: 80, color: SwipifyTheme.backgroundColor,
+                      child: const Icon(Icons.broken_image, size: 20, color: SwipifyTheme.textMuted),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 12),
+        const Divider(height: 1),
       ]),
     );
   }
