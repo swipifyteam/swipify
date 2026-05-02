@@ -60,6 +60,12 @@ class SwipifyTheme {
     color: accentColor,
   );
 
+  static TextStyle body = GoogleFonts.inter(
+    fontSize: 14,
+    color: textSecondary,
+    fontWeight: FontWeight.w400,
+  );
+
   static TextStyle bodySmall = GoogleFonts.inter(
     fontSize: 11,
     color: textSecondary,

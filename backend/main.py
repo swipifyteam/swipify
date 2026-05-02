@@ -16,7 +16,7 @@ from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
 from app.seller import orders_seller
-from app.routes import seller_vouchers, marketing, payments
+from app.routes import seller_vouchers, marketing, payments, chats
 
 # Create the FastAPI app instance
 app = FastAPI(
@@ -58,6 +58,7 @@ app.include_router(marketing.router)
 app.include_router(admin.router, prefix="/admin", tags=["Admin Dashboard"])
 app.include_router(support.router, prefix="/support", tags=["Support Centre"])
 app.include_router(auth_sms.router, prefix="/auth/sms", tags=["SMS Authentication"])
+app.include_router(chats.router, prefix="/chats", tags=["Chats"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
 import uuid
 
