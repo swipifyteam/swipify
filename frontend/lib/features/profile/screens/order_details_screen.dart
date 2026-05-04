@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/orders/model/order_model.dart';
+import 'package:swipify/features/orders/tracking_screen.dart';
 
 class OrderDetailsScreen extends StatelessWidget {
   final OrderModel order;
@@ -269,33 +270,69 @@ class OrderDetailsScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: SwipifyTheme.backgroundColor, 
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  order.trackingNumber ?? '-', 
-                  style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w700, color: SwipifyTheme.textPrimary, fontSize: 13),
-                ),
+        if (order.trackingNumber != null && (order.status.toLowerCase() == 'shipped' || order.status.toLowerCase() == 'in_transit' || order.status.toLowerCase() == 'out_for_delivery'))
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TrackingScreen(
+                      orderId: order.id,
+                      trackingNumber: order.trackingNumber!,
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: SwipifyTheme.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
               ),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: order.trackingNumber ?? ''));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied!')));
-                },
-                child: Text(
-                  'COPY',
-                  style: GoogleFonts.inter(color: SwipifyTheme.primaryColor, fontWeight: FontWeight.w900, fontSize: 11),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.map_rounded, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'TRACK ORDER',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1),
+                  ),
+                ],
               ),
-            ],
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: SwipifyTheme.backgroundColor, 
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    order.trackingNumber ?? '-', 
+                    style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w700, color: SwipifyTheme.textPrimary, fontSize: 13),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: order.trackingNumber ?? ''));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied!')));
+                  },
+                  child: Text(
+                    'COPY',
+                    style: GoogleFonts.inter(color: SwipifyTheme.primaryColor, fontWeight: FontWeight.w900, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }

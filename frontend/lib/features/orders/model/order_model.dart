@@ -36,6 +36,31 @@ class StatusHistoryEntry {
   }
 }
 
+class TrackingModel {
+  final String? trackingNumber;
+  final String status;
+  final List<StatusHistoryEntry> statusHistory;
+  final String? courier;
+
+  TrackingModel({
+    this.trackingNumber,
+    required this.status,
+    required this.statusHistory,
+    this.courier,
+  });
+
+  factory TrackingModel.fromJson(Map<String, dynamic> json) {
+    return TrackingModel(
+      trackingNumber: json['tracking_number'],
+      status: json['status'] ?? 'pending',
+      statusHistory: (json['status_history'] as List? ?? [])
+          .map((e) => StatusHistoryEntry.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      courier: json['courier'],
+    );
+  }
+}
+
 class OrderItemModel {
   final String productId;
   final String name;     // Merged product info for record integrity
@@ -89,6 +114,7 @@ class OrderModel {
   final String? logisticProvider;
   final double? discountAmount;
   final String? voucherId;
+  final String? shipmentId;
   final List<StatusHistoryEntry> statusHistory;
 
   OrderModel({
@@ -108,6 +134,7 @@ class OrderModel {
     this.logisticProvider,
     this.discountAmount,
     this.voucherId,
+    this.shipmentId,
     this.statusHistory = const [],
   });
 
@@ -137,6 +164,7 @@ class OrderModel {
       logisticProvider: json['logistic_provider'],
       discountAmount: (json['discount_amount'] ?? 0.0).toDouble(),
       voucherId: json['voucher_id'],
+      shipmentId: json['shipment_id'],
       statusHistory: (json['status_history'] as List? ?? [])
           .map((e) => StatusHistoryEntry.fromJson(e as Map<String, dynamic>))
           .toList(),

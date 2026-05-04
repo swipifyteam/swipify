@@ -6,6 +6,7 @@ import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/services/review_service.dart';
 import 'package:swipify/features/orders/order_service.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:swipify/features/orders/tracking_screen.dart';
 
 class OrderScreen extends StatefulWidget {
   const OrderScreen({super.key});
@@ -286,10 +287,36 @@ class _OrderScreenState extends State<OrderScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.local_shipping_rounded, size: 16, color: Colors.blue),
-              const SizedBox(width: 8),
-              Text("Logistics Information", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue)),
+              Row(
+                children: [
+                  const Icon(Icons.local_shipping_rounded, size: 16, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Text("Logistics Information", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue)),
+                ],
+              ),
+              if (order.shipmentId != null)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TrackingScreen(shipmentId: order.shipmentId!),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.map, size: 16),
+                  label: const Text("Track Order", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 8),
