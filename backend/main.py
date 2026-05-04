@@ -8,10 +8,12 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables at the very beginning
+# Try backend/.env first, then fall back to root project .env
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Import all route modules
-from app.routes import products, categories, cart, vouchers, notifications, users, orders, address, shipping, reviews, admin, support, auth_sms
+from app.routes import products, categories, cart, vouchers, notifications, users, orders, address, shipping, reviews, admin, support, auth_sms, ai_chat
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
@@ -59,6 +61,7 @@ app.include_router(admin.router, prefix="/admin", tags=["Admin Dashboard"])
 app.include_router(support.router, prefix="/support", tags=["Support Centre"])
 app.include_router(auth_sms.router, prefix="/auth/sms", tags=["SMS Authentication"])
 app.include_router(chats.router, prefix="/chats", tags=["Chats"])
+app.include_router(ai_chat.router, prefix="/ai", tags=["AI Chatbot"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
 import uuid
 
@@ -74,6 +77,18 @@ async def upload_image(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/ai/debug-config")
+async def debug_config():
+    key = os.getenv("AIAPI_KEY", "")
+    return {
+        "key_loaded": bool(key),
+        "key_prefix": key[:10] + "..." if key else "MISSING",
+        "env_files_checked": [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+        ]
+    }
 
 @app.get("/")
 async def root():
