@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     PAYMONGO_WEBHOOK_SECRET: str = ""
     SMS_KEY: str = ""
 
+    # AI Chatbot (Google Gemini)
+    AIAPI_KEY: str = ""
+
     # Firebase
     FIREBASE_SERVICE_ACCOUNT_PATH: str = "serviceAccountKey.json"
 
