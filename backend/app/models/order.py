@@ -9,21 +9,29 @@ class OrderStatus(str, Enum):
     PENDING = "pending"
     PAID = "paid"
     PROCESSING = "processing"
+    READY_FOR_SHIPMENT = "ready_for_shipment"
+    LABEL_CREATED = "label_created"
     SHIPPED = "shipped"
     IN_TRANSIT = "in_transit"
+    OUT_FOR_DELIVERY = "out_for_delivery"
     DELIVERED = "delivered"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    EXCEPTION = "exception"
 
 VALID_ORDER_TRANSITIONS = {
     OrderStatus.PENDING: {OrderStatus.PROCESSING, OrderStatus.PAID, OrderStatus.CANCELLED},
     OrderStatus.PAID: {OrderStatus.PROCESSING, OrderStatus.CANCELLED},
-    OrderStatus.PROCESSING: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
-    OrderStatus.SHIPPED: {OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED},
-    OrderStatus.IN_TRANSIT: {OrderStatus.DELIVERED},
+    OrderStatus.PROCESSING: {OrderStatus.READY_FOR_SHIPMENT, OrderStatus.CANCELLED},
+    OrderStatus.READY_FOR_SHIPMENT: {OrderStatus.LABEL_CREATED, OrderStatus.CANCELLED},
+    OrderStatus.LABEL_CREATED: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
+    OrderStatus.SHIPPED: {OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.EXCEPTION},
+    OrderStatus.IN_TRANSIT: {OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.EXCEPTION},
+    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.DELIVERED, OrderStatus.EXCEPTION},
     OrderStatus.DELIVERED: {OrderStatus.COMPLETED},
     OrderStatus.COMPLETED: set(),
     OrderStatus.CANCELLED: set(),
+    OrderStatus.EXCEPTION: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
 }
 
 class OrderItem(BaseModel):

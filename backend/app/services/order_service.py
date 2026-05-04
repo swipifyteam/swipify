@@ -17,6 +17,7 @@ from app.utils.notifications import create_notification
 from app.utils.email_service import send_order_status_email
 from app.services.voucher_service import increment_voucher_usage_service
 from app.services.inventory_service import batch_deduct_order_stock_service
+from app.services.easyship_service import create_easyship_shipment
 
 
 def get_current_time_iso() -> str:
@@ -327,29 +328,107 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
 
         now = get_current_time_iso()
         
-        # 🚨 LOGISTICS INJECTION: Generate tracking number if SHIPPED 🚨
         update_data = {"status": new_status.value, "updated_at": now}
-        if new_status == OrderStatus.SHIPPED:
-            # Generate tracking number: SW- + 6 random digits
-            import random
-            tracking_id = f"SW-{random.randint(100000, 999999)}"
-            update_data["tracking_number"] = tracking_id
-            update_data["logistic_provider"] = "J&T" # Specified by user
+
+        # 🚨 LOGISTICS INJECTION: Trigger Easyship Shipment Creation 🚨
+        if new_status == OrderStatus.READY_FOR_SHIPMENT:
+            print(f"[ORDER] Status is READY_FOR_SHIPMENT. Triggering Easyship for {order_id}")
             
-            # 🚨 CREATE SHIPMENT DOCUMENT 🚨
-            # This allows the TrackingScreen to find a document in the 'shipments' collection
-            db.collection("shipments").document(tracking_id).set({
+            # 1. Validation: Payment check
+            payment_status = order_doc.get("payment_status", "unpaid")
+            payment_method = order_doc.get("payment_method", "ONLINE") # Default to online if not specified
+            
+            if payment_method != "COD" and payment_status != "paid":
+                raise ValueError("Online orders must be paid before creating a shipment.")
+                
+            # 2. Fetch Seller Info for Origin Address
+            seller_id = order_doc.get("seller_id")
+            seller_doc = db.collection("sellers").document(seller_id).get()
+            if not seller_doc.exists:
+                raise ValueError(f"Seller {seller_id} not found. Cannot create shipment.")
+            
+            seller_data = seller_doc.to_dict()
+            
+            # 3. Prepare Easyship Payload
+            items = order_doc.get("items", [])
+            shipping_address = order_doc.get("shipping_address", {})
+            shipping_details = order_doc.get("shipping_details", {})
+            
+            easyship_payload = {
                 "order_id": order_id,
-                "tracking_number": tracking_id,
-                "status": "shipped",
-                "courier": "J&T",
-                "updated_at": now,
-                "location": {
-                    "lat": 14.5995, # Default Manila center for starting tracking
-                    "lng": 120.9842,
-                    "address": "Manila Sorting Center"
-                }
-            })
+                "payment_method": payment_method,
+                "total_price": order_doc.get("total_price", 0),
+                "origin_address": {
+                    "line_1": seller_data.get("street", "Seller Street"),
+                    "city": seller_data.get("city", "Manila"),
+                    "state": seller_data.get("province", "Metro Manila"),
+                    "postal_code": seller_data.get("postal_code", "1000"),
+                    "country_alpha2": "PH",
+                    "contact_name": seller_data.get("store_name", "Swipify Seller"),
+                    "contact_phone": seller_data.get("phone_number", "+639123456789"),
+                    "contact_email": "seller@swipify.com"
+                },
+                "destination_address": {
+                    "line_1": shipping_address.get("street", ""),
+                    "city": shipping_address.get("city", ""),
+                    "state": shipping_address.get("region", ""),
+                    "postal_code": shipping_address.get("postal_code", ""),
+                    "country_alpha2": "PH",
+                    "contact_name": shipping_address.get("full_name", "Customer"),
+                    "contact_phone": shipping_address.get("phone", ""),
+                    "contact_email": "customer@example.com"
+                },
+                "courier_id": shipping_details.get("id", "standard_courier_id"), # In a real app, this would be a real Easyship courier ID
+                "total_weight": sum(item.get("quantity", 1) * 0.5 for item in items),
+                "items": [
+                    {
+                        "description": item.get("name", "Product"),
+                        "sku": item.get("product_id", "SKU"),
+                        "quantity": item.get("quantity", 1),
+                        "actual_weight": 0.5,
+                        "declared_currency": "PHP",
+                        "declared_customs_value": item.get("price", 0)
+                    } for item in items
+                ]
+            }
+            
+            # 4. Call Easyship Service (Async call in a sync service, using a helper if needed or just await)
+            # Since update_order_status_service is sync, and create_easyship_shipment is async,
+            # we should ideally make this service async or use a loop.
+            # But the existing codebase seems to mix them. I'll use asyncio if needed or make the service async.
+            import asyncio
+            try:
+                # Note: This might block if not handled correctly in a sync context, but FastAPI runs sync def in threadpool.
+                shipment_result = asyncio.run(create_easyship_shipment(easyship_payload))
+                
+                # 5. Update Order with tracking details
+                update_data["tracking_number"] = shipment_result["tracking_number"]
+                update_data["logistic_provider"] = shipment_result["courier"]
+                update_data["label_url"] = shipment_result["label_url"]
+                update_data["shipment_id"] = shipment_result["shipment_id"]
+                update_data["status"] = OrderStatus.LABEL_CREATED.value # Move to LABEL_CREATED automatically
+                
+                # 6. Create Dedicated Shipment Document
+                db.collection("shipments").document(shipment_result["shipment_id"]).set({
+                    "order_id": order_id,
+                    "tracking_number": shipment_result["tracking_number"],
+                    "status": "label_created",
+                    "courier": shipment_result["courier"],
+                    "label_url": shipment_result["label_url"],
+                    "last_location": "Awaiting Pickup",
+                    "last_updated_timestamp": firestore.SERVER_TIMESTAMP,
+                    "created_at": now,
+                    "updated_at": now
+                })
+                
+                print(f"[ORDER] Shipment created for {order_id}: {shipment_result['tracking_number']}")
+                
+            except Exception as e:
+                print(f"[ORDER] ❌ Easyship Error for {order_id}: {str(e)}")
+                # We might want to move to an EXCEPTION status if API fails
+                update_data["status"] = OrderStatus.EXCEPTION.value
+                update_data["notes"] = f"Easyship API Failure: {str(e)}"
+                # Continue so the status update still happens but to EXCEPTION
 
         # Update order status and append to status_history list
         from firebase_admin import firestore
