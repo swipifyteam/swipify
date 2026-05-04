@@ -3,11 +3,6 @@ serviceAccountKey.json
 
 .env
 
-# Python cache
+# Python cache files
 __pycache__/
 *.pyc
-
-# env files
-.env
-backend/.env
-.env
