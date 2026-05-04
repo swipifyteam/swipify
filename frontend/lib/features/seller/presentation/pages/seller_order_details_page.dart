@@ -1,19 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/orders/model/order_model.dart';
+import 'package:swipify/features/orders/order_service.dart';
+import 'package:swipify/services/shipping_service.dart';
 
-class SellerOrderDetailsPage extends StatelessWidget {
+class SellerOrderDetailsPage extends StatefulWidget {
   final OrderModel order;
 
   const SellerOrderDetailsPage({super.key, required this.order});
 
   @override
+  State<SellerOrderDetailsPage> createState() => _SellerOrderDetailsPageState();
+}
+
+class _SellerOrderDetailsPageState extends State<SellerOrderDetailsPage> {
+  late OrderModel _currentOrder;
+  bool _isCreatingShipment = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentOrder = widget.order;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor(order.status);
+    final statusColor = _getStatusColor(_currentOrder.status);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Order #${order.id.substring(0, 8).toUpperCase()}'),
+        title: Text('Order #${_currentOrder.id.substring(0, 8).toUpperCase()}'),
         backgroundColor: SwipifyTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -33,32 +49,63 @@ class SellerOrderDetailsPage extends StatelessWidget {
                 children: [
                    Icon(Icons.info_outline, color: statusColor),
                    const SizedBox(width: 12),
-                   Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Text('Status: ${order.status.toUpperCase()}', 
-                         style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 16)),
-                       Text('Updated: ${order.updatedAt?.substring(0, 10) ?? 'N/A'}', 
-                         style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                     ],
-                   )
-                ],
+                     Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         Text('Status: ${_currentOrder.status.toUpperCase()}', 
+                           style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 16)),
+                         Text('Updated: ${_currentOrder.updatedAt?.substring(0, 10) ?? 'N/A'}', 
+                           style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                       ],
+                     )
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+              if (_currentOrder.status.toLowerCase() == 'processing' || _currentOrder.status.toLowerCase() == 'pending')
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isCreatingShipment ? null : () async {
+                      setState(() => _isCreatingShipment = true);
+                      try {
+                        await ShippingService.createShipment(
+                          orderId: _currentOrder.id,
+                          courierId: 'jnt', // Defaulting to J&T for now, or could let seller choose
+                        );
+                        // We just pop and refresh
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shipment created successfully!')));
+                        Navigator.pop(context, true); // Return true to signal refresh needed
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+                      } finally {
+                        if (mounted) setState(() => _isCreatingShipment = false);
+                      }
+                    },
+                    icon: _isCreatingShipment ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.local_shipping),
+                    label: Text(_isCreatingShipment ? 'Creating...' : 'Create Shipment'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: SwipifyTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
             const SizedBox(height: 24),
 
             // Shipping Address Snapshot
             const Text('Shipping Address (Snapshot)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 12),
-            if (order.shippingAddress != null)
+            if (_currentOrder.shippingAddress != null)
               _buildInfoCard(
                 context,
                 [
-                  'Recipient: ${order.shippingAddress!['full_name']}',
-                  'Phone: ${order.shippingAddress!['phone']}',
-                  'Address: ${order.shippingAddress!['street']}, ${order.shippingAddress!['barangay']}',
-                  'Location: ${order.shippingAddress!['city']}, ${order.shippingAddress!['region']}',
-                  'Postal Code: ${order.shippingAddress!['postal_code']}',
+                  'Recipient: ${_currentOrder.shippingAddress!['full_name']}',
+                  'Phone: ${_currentOrder.shippingAddress!['phone']}',
+                  'Address: ${_currentOrder.shippingAddress!['street']}, ${_currentOrder.shippingAddress!['barangay']}',
+                  'Location: ${_currentOrder.shippingAddress!['city']}, ${_currentOrder.shippingAddress!['region']}',
+                  'Postal Code: ${_currentOrder.shippingAddress!['postal_code']}',
                 ],
                 Icons.location_on,
               )
@@ -70,13 +117,13 @@ class SellerOrderDetailsPage extends StatelessWidget {
             // Shipping Option Snapshot
             const Text('Shipping Method', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 12),
-             if (order.shippingOption != null)
+             if (_currentOrder.shippingOption != null)
               _buildInfoCard(
                 context,
                 [
-                  'Method: ${order.shippingOption!['name']}',
-                  'Fee: ₱${order.shippingFee?.toStringAsFixed(2)}',
-                  'Est. Delivery: ${order.shippingOption!['estimated_delivery'] ?? '3-5 days'}',
+                  'Method: ${_currentOrder.shippingOption!['name']}',
+                  'Fee: ₱${_currentOrder.shippingFee?.toStringAsFixed(2)}',
+                  'Est. Delivery: ${_currentOrder.shippingOption!['estimated_delivery'] ?? '3-5 days'}',
                 ],
                 Icons.local_shipping,
               )
@@ -88,7 +135,7 @@ class SellerOrderDetailsPage extends StatelessWidget {
             // Items List
             const Text('Order Items', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 12),
-            ...order.items.map((item) => Card(
+            ..._currentOrder.items.map((item) => Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: Container(width: 40, height: 40, color: Colors.grey[200], child: const Icon(Icons.inventory)),
@@ -102,11 +149,11 @@ class SellerOrderDetailsPage extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Order Totals
-            _buildTotalRow('Subtotal', '₱${(order.totalPrice - (order.shippingFee ?? 0)).toStringAsFixed(2)}'),
+            _buildTotalRow('Subtotal', '₱${(_currentOrder.totalPrice - (_currentOrder.shippingFee ?? 0)).toStringAsFixed(2)}'),
             const SizedBox(height: 8),
-            _buildTotalRow('Shipping Fee', '₱${order.shippingFee?.toStringAsFixed(2)}'),
+            _buildTotalRow('Shipping Fee', '₱${_currentOrder.shippingFee?.toStringAsFixed(2)}'),
             const Divider(height: 32),
-            _buildTotalRow('Total Amount', '₱${order.totalPrice.toStringAsFixed(2)}', isBold: true),
+            _buildTotalRow('Total Amount', '₱${_currentOrder.totalPrice.toStringAsFixed(2)}', isBold: true),
             const SizedBox(height: 48),
           ],
         ),

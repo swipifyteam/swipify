@@ -54,4 +54,24 @@ class ShippingService {
       throw Exception('Failed to calculate shipping. Status: ${response.statusCode}, Body: $responseBody');
     }
   }
+
+  static Future<Map<String, dynamic>> createShipment({
+    required String orderId,
+    required String courierId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiService.baseUrl}/shipping/create'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'order_id': orderId,
+        'courier_id': courierId,
+      }),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to create shipment: ${response.body}');
+    }
+  }
 }

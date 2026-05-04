@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:swipify/services/review_service.dart';
 import 'package:swipify/features/orders/service/order_provider.dart';
+import 'package:swipify/features/orders/tracking_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   final int initialTab;
@@ -241,8 +242,8 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                       controller: _tabController,
                       children: [
                         _OrdersList(orders: orderProvider.orders),
-                        _OrdersList(orders: orderProvider.orders.where((o) => o.status == 'pending' || o.paymentStatus == 'unpaid').toList()),
-                        _OrdersList(orders: orderProvider.orders.where((o) => (o.status == 'processing' || o.status == 'paid') && o.paymentStatus == 'paid').toList()),
+                        _OrdersList(orders: orderProvider.orders.where((o) => o.status == 'pending').toList()),
+                        _OrdersList(orders: orderProvider.orders.where((o) => o.status == 'processing' || o.status == 'paid').toList()),
                         _OrdersList(orders: orderProvider.orders.where((o) => o.status == 'shipped' || o.status == 'in_transit' || o.status == 'delivered').toList()),
                         _OrdersList(orders: orderProvider.orders.where((o) => o.status == 'completed').toList()),
                       ],
@@ -494,6 +495,33 @@ class _OrderCard extends StatelessWidget {
                             ],
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+                if (order.trackingNumber != null && (order.status.toLowerCase() == 'shipped' || order.status.toLowerCase() == 'in_transit' || order.status.toLowerCase() == 'out_for_delivery'))
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TrackingScreen(
+                                orderId: order.id,
+                                trackingNumber: order.trackingNumber!,
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: SwipifyTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        child: Text('TRACK ORDER', style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 0.5)),
                       ),
                     ),
                   ),

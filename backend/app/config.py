@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # Admin Settings
     DASHBOARD_STATS_CACHE_HOURS: int = 1
 
+    # Shipping (Easyship)
+    SHIPAPI_KEY: str = ""
+
+    # Google Maps
+    MAPAPI_KEY: str = ""
+
 @lru_cache()
 def get_settings():
     return Settings()

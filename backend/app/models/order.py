@@ -92,6 +92,12 @@ class OrderResponse(BaseModel):
     voucher_id: Optional[str] = None
     status_history: Optional[List[StatusHistoryEntry]] = None
 
+class TrackingResponse(BaseModel):
+    tracking_number: Optional[str]
+    status: str
+    status_history: List[StatusHistoryEntry]
+    courier: Optional[str]
+
 class CalculateTotalRequest(BaseModel):
     distance_km: float
     weight_kg: float

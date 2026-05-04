@@ -176,4 +176,17 @@ class OrderService {
     }
     throw Exception('Failed to update order status: ${response.statusCode}');
   }
+  
+  /// Get tracking info for an order
+  static Future<TrackingModel> getTracking(String orderId) async {
+    debugPrint("[TRACKING FETCH] $orderId");
+    final response = await http.get(Uri.parse('${ApiService.baseUrl}/orders/$orderId/tracking'));
+    
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      debugPrint("[TRACKING DATA] ${data['tracking_number']}");
+      return TrackingModel.fromJson(data);
+    }
+    throw Exception('Failed to load tracking: ${response.statusCode}');
+  }
 }

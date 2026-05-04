@@ -8,7 +8,8 @@ from app.models.order import (
     BuyNowRequest,
     CalculateTotalRequest,
     CalculateTotalResponse,
-    StatusHistoryEntry
+    StatusHistoryEntry,
+    TrackingResponse
 )
 from app.services.order_service import (
     create_order_service,
@@ -200,15 +201,24 @@ async def get_order_detail(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/detail/{order_id}/tracking", response_model=List[StatusHistoryEntry])
+@router.get("/{order_id}/tracking", response_model=TrackingResponse)
 async def get_order_tracking(
     order_id: str = Path(..., description="The ID of the order")
 ):
     """Get tracking / status history for an order."""
-    print(f"[ORDERS API] GET /orders/{order_id}/tracking")
+    print(f"[ORDERS API] [TRACKING FETCH] {order_id}")
     try:
-        history = get_order_status_history(order_id)
-        return history
+        order = get_order_by_id(order_id)
+        print(f"[ORDERS API] [TRACKING DATA] {order.get('tracking_number')}")
+        
+        return TrackingResponse(
+            tracking_number=order.get("tracking_number"),
+            status=order.get("status"),
+            status_history=order.get("status_history", []),
+            courier=order.get("logistic_provider")
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         print(f"[ORDERS API] ❌ Error fetching tracking: {e}")
         raise HTTPException(status_code=500, detail=str(e))
