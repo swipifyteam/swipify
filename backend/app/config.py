@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # Shipping (Easyship)
     SHIPAPI_KEY: str = ""
+    APIWEB_KEY: str = ""
 
     # Google Maps
     MAPAPI_KEY: str = ""
