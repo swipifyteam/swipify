@@ -1,0 +1,31 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "smartbez",
+          "appId": "1:663414398790:android:cf842dfb600d829e180f47",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "smartbez",
+          "configurations": {
+            "android": "1:663414398790:android:cf842dfb600d829e180f47",
+            "ios": "1:663414398790:ios:a36b543f5941b115180f47",
+            "macos": "1:663414398790:ios:a36b543f5941b115180f47",
+            "web": "1:663414398790:web:7bd3d53dec415a4d180f47",
+            "windows": "1:663414398790:web:f73aaafc26f8d87e180f47"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

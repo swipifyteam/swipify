@@ -4,32 +4,19 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import load_dotenv
+
+# Load environment variables at the very beginning
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Import all route modules
-from app.routes import (
-    products,
-    categories,
-    cart,
-    vouchers,
-    notifications,
-    engagement,
-    users,
-    orders,
-    address,
-    shipping,
-    reviews,
-    seller_vouchers,
-    marketing,
-    admin
-)
-
+from app.routes import products, categories, cart, vouchers, notifications, users, orders, address, shipping, reviews, admin, support, auth_sms
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
 from app.seller import orders_seller
-
-from app.utils.cloudinary_handler import upload_image_to_cloudinary
-import uuid
+from app.routes import seller_vouchers, marketing, payments, chats
 
 # Create the FastAPI app instance
 app = FastAPI(
@@ -52,6 +39,7 @@ app.include_router(products.router, prefix="/products", tags=["Products"])
 app.include_router(categories.router, prefix="/categories", tags=["Categories"])
 app.include_router(cart.router, prefix="/cart", tags=["Cart"])
 app.include_router(orders.router, prefix="/orders", tags=["Orders"])
+app.include_router(payments.router, prefix="/payments", tags=["Payments"])
 app.include_router(vouchers.router, prefix="/vouchers", tags=["Vouchers"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 
@@ -68,7 +56,11 @@ app.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
 app.include_router(seller_vouchers.router, tags=["Seller Vouchers"])
 app.include_router(marketing.router)
 app.include_router(admin.router, prefix="/admin", tags=["Admin Dashboard"])
-
+app.include_router(support.router, prefix="/support", tags=["Support Centre"])
+app.include_router(auth_sms.router, prefix="/auth/sms", tags=["SMS Authentication"])
+app.include_router(chats.router, prefix="/chats", tags=["Chats"])
+from app.utils.cloudinary_handler import upload_image_to_cloudinary
+import uuid
 
 @app.post("/upload-image", tags=["Upload"])
 async def upload_image(file: UploadFile = File(...)):
