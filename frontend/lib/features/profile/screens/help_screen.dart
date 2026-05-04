@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/services/support_service.dart';
+import 'package:swipify/features/profile/screens/ai_chat_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
@@ -36,7 +38,7 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -98,7 +100,7 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
       });
       
       // Switch to "My Tickets" tab
-      _tabController.animateTo(1);
+      _tabController.animateTo(2);
     } catch (e) {
       setState(() => _isSubmitting = false);
       if (!mounted) return;
@@ -121,16 +123,81 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
           tabs: const [
-            Tab(text: 'New Ticket'),
-            Tab(text: 'My Tickets'),
+            Tab(icon: Icon(Icons.smart_toy_rounded, size: 18), text: 'AI Assistant'),
+            Tab(icon: Icon(Icons.add_circle_outline, size: 18), text: 'New Ticket'),
+            Tab(icon: Icon(Icons.list_alt, size: 18), text: 'My Tickets'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
+          _buildAiAssistantTab(),
           _buildNewTicketForm(),
           _buildMyTicketsList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiAssistantTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          Container(
+            width: 80, height: 80,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFE97B4A), Color(0xFFFF9A6C)]),
+              borderRadius: BorderRadius.circular(40),
+              boxShadow: [BoxShadow(color: const Color(0xFFE97B4A).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+            ),
+            child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 40),
+          ),
+          const SizedBox(height: 20),
+          Text('Swipify Assistant', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: SwipifyTheme.textPrimary)),
+          const SizedBox(height: 8),
+          Text('Get instant help with your orders, payments,\nshipping, and more.', textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 14, color: SwipifyTheme.textSecondary, height: 1.5)),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity, height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiChatScreen())),
+              icon: const Icon(Icons.chat_bubble_outline, size: 20),
+              label: Text('Start Chat', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: SwipifyTheme.primaryColor, foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          _buildFeatureRow(Icons.bolt, 'Instant Answers', 'Get help 24/7 without waiting'),
+          _buildFeatureRow(Icons.verified_user, 'Context-Aware', 'Knows your orders and account'),
+          _buildFeatureRow(Icons.confirmation_number, 'Auto Tickets', 'Create support tickets via chat'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(color: SwipifyTheme.accentColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: SwipifyTheme.accentColor, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: SwipifyTheme.textPrimary)),
+            Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: SwipifyTheme.textSecondary)),
+          ])),
         ],
       ),
     );
