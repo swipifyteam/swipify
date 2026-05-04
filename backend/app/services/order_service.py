@@ -85,6 +85,15 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
             "payment_status": "unpaid",  # Payment pending
             "created_at": now,
             "updated_at": now,
+            "status_history": [
+                {
+                    "timestamp": now,
+                    "old_status": None,
+                    "new_status": OrderStatus.PENDING.value,
+                    "updated_by": "system",
+                    "notes": "Order created",
+                }
+            ],
         }
 
         # 3. Write specifically to the 'orders' collection (unique ID)
@@ -191,6 +200,15 @@ def buy_now_service(buy_request: BuyNowRequest) -> dict:
             "payment_status": "unpaid",
             "created_at": now,
             "updated_at": now,
+            "status_history": [
+                {
+                    "timestamp": now,
+                    "old_status": None,
+                    "new_status": OrderStatus.PENDING.value,
+                    "updated_by": "system",
+                    "notes": "Buy Now order created",
+                }
+            ],
         }
 
         # 4. Write to orders collection
@@ -312,12 +330,37 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
         # 🚨 LOGISTICS INJECTION: Generate tracking number if SHIPPED 🚨
         update_data = {"status": new_status.value, "updated_at": now}
         if new_status == OrderStatus.SHIPPED:
-            # Generate a cool-looking tracking ID (e.g., SW-12345678)
-            tracking_id = f"SW-{str(uuid.uuid4())[:8].upper()}"
+            # Generate tracking number: SW- + 6 random digits
+            import random
+            tracking_id = f"SW-{random.randint(100000, 999999)}"
             update_data["tracking_number"] = tracking_id
-            update_data["logistic_provider"] = "Swipify Express"
+            update_data["logistic_provider"] = "J&T" # Specified by user
+            
+            # 🚨 CREATE SHIPMENT DOCUMENT 🚨
+            # This allows the TrackingScreen to find a document in the 'shipments' collection
+            db.collection("shipments").document(tracking_id).set({
+                "order_id": order_id,
+                "tracking_number": tracking_id,
+                "status": "shipped",
+                "courier": "J&T",
+                "updated_at": now,
+                "location": {
+                    "lat": 14.5995, # Default Manila center for starting tracking
+                    "lng": 120.9842,
+                    "address": "Manila Sorting Center"
+                }
+            })
 
-        # Update order status
+        # Update order status and append to status_history list
+        from firebase_admin import firestore
+        update_data["status_history"] = firestore.ArrayUnion([
+            {
+                "timestamp": now,
+                "old_status": current_status.value,
+                "new_status": new_status.value,
+                "updated_by": "system",
+            }
+        ])
         order_ref.update(update_data)
 
         # 🚨 STOCK DEDUCTION: Deduct stock when DELIVERED 🚨
@@ -388,8 +431,15 @@ def update_order_payment_service(order_id: str, new_payment_status: str) -> dict
         raise e
 
 def get_order_status_history(order_id: str) -> list:
-    """Fetch the status_history subcollection for an order."""
+    """Fetch the status_history for an order, preferring the embedded field."""
     try:
+        order_doc = db.collection("orders").document(order_id).get()
+        if order_doc.exists:
+            order_data = order_doc.to_dict()
+            if "status_history" in order_data:
+                return order_data["status_history"]
+        
+        # Fallback to subcollection
         docs = (
             db.collection("orders")
             .document(order_id)

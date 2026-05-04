@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 class ShippingItem(BaseModel):
     product_id: str
@@ -27,3 +27,25 @@ class SelectedShippingOption(BaseModel):
 
 class ShippingCalculationResponse(BaseModel):
     options: List[ShippingOption]
+
+class ShipmentCreateRequest(BaseModel):
+    order_id: str
+    courier_id: str
+
+class ShipmentLocation(BaseModel):
+    lat: float
+    lng: float
+
+class ShipmentResponse(BaseModel):
+    shipment_id: str
+    tracking_number: str
+    courier: str
+    label_url: str
+
+class WebhookPayload(BaseModel):
+    event_type: str  # e.g., 'shipment.status.updated'
+    shipment_id: str
+    tracking_number: str
+    status: str      # e.g., 'shipped', 'in_transit', 'out_for_delivery', 'delivered'
+    location: Optional[ShipmentLocation] = None
+

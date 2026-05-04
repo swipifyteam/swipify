@@ -11,8 +11,8 @@ class OrderProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  int get toPayCount => _orders.where((o) => o.status == 'pending' || o.paymentStatus == 'unpaid').length;
-  int get toShipCount => _orders.where((o) => (o.status == 'processing' || o.status == 'paid') && o.paymentStatus == 'paid').length;
+  int get toPayCount => _orders.where((o) => o.status == 'pending').length;
+  int get toShipCount => _orders.where((o) => o.status == 'processing' || o.status == 'paid').length;
   int get toReceiveCount => _orders.where((o) => o.status == 'shipped' || o.status == 'in_transit' || o.status == 'delivered').length;
   int get completedCount => _orders.where((o) => o.status == 'completed').length;
 
