@@ -61,4 +61,10 @@ class MockOrderProvider extends ChangeNotifier implements OrderProvider {
   Future<void> updateOrderStatus(String orderId, String newStatus) async {
     // Mock: no-op
   }
+
+  @override
+  Future<bool> confirmCod(String orderId) async {
+    // Mock implementation for confirmCod
+    return true;
+  }
 }

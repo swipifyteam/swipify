@@ -176,7 +176,6 @@ class OrderService {
     }
     throw Exception('Failed to update order status: ${response.statusCode}');
   }
-  
   /// Get tracking info for an order
   static Future<TrackingModel> getTracking(String orderId) async {
     debugPrint("[TRACKING FETCH] $orderId");
@@ -188,5 +187,27 @@ class OrderService {
       return TrackingModel.fromJson(data);
     }
     throw Exception('Failed to load tracking: ${response.statusCode}');
+  }
+
+  /// Confirm COD Order
+  static Future<OrderModel> confirmCod(String orderId) async {
+    final response = await http.post(
+      Uri.parse('${ApiService.baseUrl}/orders/$orderId/confirm-cod'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return OrderModel.fromJson(json.decode(response.body));
+    }
+    
+    // Attempt to extract the detail error message
+    try {
+      final errData = json.decode(response.body);
+      if (errData['detail'] != null) {
+        throw Exception(errData['detail']);
+      }
+    } catch (_) {}
+    
+    throw Exception('Failed to confirm COD: ${response.statusCode}');
   }
 }

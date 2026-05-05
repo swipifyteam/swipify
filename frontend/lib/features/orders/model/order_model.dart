@@ -105,6 +105,8 @@ class OrderModel {
   final double totalPrice;
   final String status;
   final String paymentStatus;
+  final String paymentMethod;
+  final bool isCodConfirmed;
   final Map<String, dynamic>? shippingAddress;
   final Map<String, dynamic>? shippingOption;
   final double? shippingFee;
@@ -125,6 +127,8 @@ class OrderModel {
     required this.totalPrice,
     required this.status,
     required this.paymentStatus,
+    required this.paymentMethod,
+    this.isCodConfirmed = false,
     this.shippingAddress,
     this.shippingOption,
     this.shippingFee,
@@ -155,6 +159,8 @@ class OrderModel {
       totalPrice: (json['total_price'] ?? json['totalPrice'] ?? 0.0).toDouble(),
       status: json['status'] ?? 'pending',
       paymentStatus: json['payment_status'] ?? 'unpaid',
+      paymentMethod: json['payment_method'] ?? 'online',
+      isCodConfirmed: json['is_cod_confirmed'] ?? false,
       shippingAddress: json['shipping_address'] as Map<String, dynamic>?,
       shippingOption: shippingDetails,
       shippingFee: shippingFeeFromDetails,
@@ -180,6 +186,8 @@ class OrderModel {
       'total_price': totalPrice,
       'status': status,
       'payment_status': paymentStatus,
+      'payment_method': paymentMethod,
+      'is_cod_confirmed': isCodConfirmed,
       'shipping_address': shippingAddress,
       'shipping_option': shippingOption,
       'shipping_fee': shippingFee,

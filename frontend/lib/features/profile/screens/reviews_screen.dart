@@ -29,8 +29,11 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('My Reviews'),
         backgroundColor: SwipifyTheme.primaryColor,
@@ -43,7 +46,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(child: Text('Error: ${snapshot.error}', style: TextStyle(color: theme.colorScheme.error)));
           }
 
           final reviews = snapshot.data ?? [];
@@ -53,9 +56,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   Icon(Icons.star_border, size: 80, color: Colors.grey.shade300),
+                   Icon(Icons.star_border, size: 80, color: theme.hintColor.withValues(alpha: 0.5)),
                    const SizedBox(height: 16),
-                   const Text('You have no product reviews yet.', style: TextStyle(color: Colors.grey)),
+                   Text('You have no product reviews yet.', style: TextStyle(color: theme.hintColor)),
                 ],
               ),
             );
@@ -66,7 +69,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             itemCount: reviews.length,
             itemBuilder: (context, index) {
               final review = reviews[index];
-              return _ReviewCard(review: review);
+              return _ReviewCard(review: review, isDark: isDark, theme: theme);
             },
           );
         },
@@ -77,7 +80,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
 class _ReviewCard extends StatelessWidget {
   final ReviewModel review;
-  const _ReviewCard({required this.review});
+  final bool isDark;
+  final ThemeData theme;
+  
+  const _ReviewCard({required this.review, required this.isDark, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -85,10 +91,10 @@ class _ReviewCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 5, offset: const Offset(0, 2)),
+          if (!isDark) BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 5, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -99,11 +105,11 @@ class _ReviewCard extends StatelessWidget {
             children: [
               Text(
                 review.productName.isNotEmpty ? review.productName : 'Product Review',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textTheme.bodyLarge?.color),
               ),
               Text(
                 DateFormat('MMM d, yyyy').format(review.createdAt),
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: theme.hintColor, fontSize: 12),
               ),
             ],
           ),
@@ -118,7 +124,7 @@ class _ReviewCard extends StatelessWidget {
             }),
           ),
           const SizedBox(height: 8),
-          Text(review.comment, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+          Text(review.comment, style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color)),
         ],
       ),
     );

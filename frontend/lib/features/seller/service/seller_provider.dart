@@ -164,7 +164,9 @@ class SellerProvider with ChangeNotifier {
             items: old.items,
             totalPrice: old.totalPrice,
             status: newStatus,
+            paymentMethod: old.paymentMethod,
             paymentStatus: old.paymentStatus,
+            isCodConfirmed: old.isCodConfirmed,
             createdAt: old.createdAt,
             updatedAt: DateTime.now().toIso8601String(),
             shippingAddress: old.shippingAddress,
@@ -174,6 +176,8 @@ class SellerProvider with ChangeNotifier {
             logisticProvider: old.logisticProvider,
             discountAmount: old.discountAmount,
             voucherId: old.voucherId,
+            shipmentId: old.shipmentId,
+            statusHistory: old.statusHistory,
           );
           notifyListeners();
         }

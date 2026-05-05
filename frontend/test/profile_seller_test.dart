@@ -10,9 +10,9 @@ void main() {
     test('calculateEarnings only sums "delivered" orders', () {
       // 🚨 PART 7 FIX VERIFIED 🚨
       final orders = [
-        OrderModel(id: '1', userId: 'u1', sellerId: 's1', items: [], totalPrice: 50.0, status: 'delivered', paymentStatus: 'paid', createdAt: '', updatedAt: ''),
-        OrderModel(id: '2', userId: 'u2', sellerId: 's1', items: [], totalPrice: 30.0, status: 'pending', paymentStatus: 'unpaid', createdAt: '', updatedAt: ''),
-        OrderModel(id: '3', userId: 'u3', sellerId: 's1', items: [], totalPrice: 20.0, status: 'delivered', paymentStatus: 'paid', createdAt: '', updatedAt: ''),
+        OrderModel(id: '1', userId: 'u1', sellerId: 's1', items: [], totalPrice: 50.0, status: 'delivered', paymentStatus: 'paid', paymentMethod: 'online', createdAt: '', updatedAt: ''),
+        OrderModel(id: '2', userId: 'u2', sellerId: 's1', items: [], totalPrice: 30.0, status: 'pending', paymentStatus: 'unpaid', paymentMethod: 'cod', createdAt: '', updatedAt: ''),
+        OrderModel(id: '3', userId: 'u3', sellerId: 's1', items: [], totalPrice: 20.0, status: 'delivered', paymentStatus: 'paid', paymentMethod: 'online', createdAt: '', updatedAt: ''),
       ];
 
       final totalDelivered = orders

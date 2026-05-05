@@ -29,7 +29,10 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.person_outline, size: 80, color: Colors.grey),
+              Image.asset(
+                'assets/images/logo.png',
+                height: 120,
+              ),
               const SizedBox(height: 16),
               const Text(
                 "Please login to see your profile",

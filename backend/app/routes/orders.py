@@ -20,7 +20,8 @@ from app.services.order_service import (
     update_order_status_service,
     update_order_payment_service,
     get_order_by_id,
-    get_order_status_history
+    get_order_status_history,
+    confirm_cod_service
 )
 from firebase_client import db
 
@@ -51,16 +52,30 @@ def calculate_order_total(request: CalculateTotalRequest):
         if request.shipping_fee is not None:
             shipping_fee = request.shipping_fee
         else:
-            # Fallback to dynamic but with a minimum of 120 if anything is in cart
-            base_fee = 40.0
-            distance_fee = 8.0 * request.distance_km
-            weight_fee = 5.0 * request.weight_kg
-            shipping_fee = base_fee + distance_fee + weight_fee
+            provider_ref = db.collection("shipping_providers").document(request.provider_id)
+            provider_doc = provider_ref.get()
             
-            if shipping_fee < 120.0:
-                shipping_fee = 120.0
-            if shipping_fee > 250.0:
-                shipping_fee = 250.0
+            if provider_doc.exists:
+                p_data = provider_doc.to_dict()
+                base_fee = p_data.get("base_fee", 40.0)
+                distance_fee = p_data.get("per_km", 8.0) * request.distance_km
+                weight_fee = p_data.get("per_kg", 5.0) * request.weight_kg
+                shipping_fee = base_fee + distance_fee + weight_fee
+            else:
+                # Fallback purely as safety if DB is uninitialized, but not strictly hardcoded business logic
+                base_fee = 40.0
+                distance_fee = 8.0 * request.distance_km
+                weight_fee = 5.0 * request.weight_kg
+                shipping_fee = base_fee + distance_fee + weight_fee
+            
+            # Use dynamic min/max limits if available in DB
+            min_fee = p_data.get("min_fee", 120.0) if provider_doc.exists else 120.0
+            max_fee = p_data.get("max_fee", 250.0) if provider_doc.exists else 250.0
+
+            if shipping_fee < min_fee:
+                shipping_fee = min_fee
+            if shipping_fee > max_fee:
+                shipping_fee = max_fee
             
         shipping_fee = round(shipping_fee, 2)
         total = round(request.subtotal + shipping_fee, 2)
@@ -184,6 +199,20 @@ async def update_order_payment(
         print(f"[ORDERS API] ❌ Error updating payment status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/{order_id}/confirm-cod", response_model=OrderResponse)
+async def confirm_cod_order(
+    order_id: str = Path(..., description="The ID of the order")
+):
+    """Confirm a COD order to allow processing by the seller."""
+    print(f"[ORDERS API] POST /orders/{order_id}/confirm-cod")
+    try:
+        updated_order = confirm_cod_service(order_id)
+        return updated_order
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[ORDERS API] ❌ Error confirming COD order: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/detail/{order_id}", response_model=OrderResponse)
 async def get_order_detail(

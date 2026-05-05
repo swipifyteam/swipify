@@ -16,9 +16,12 @@ from app.models.shipping import SelectedShippingOption
 from app.utils.notifications import create_notification
 from app.utils.email_service import send_order_status_email
 from app.services.voucher_service import increment_voucher_usage_service
-from app.services.inventory_service import batch_deduct_order_stock_service
+from app.services.inventory_service import (
+    batch_reserve_order_stock_service,
+    batch_revert_order_stock_service
+)
 from app.services.easyship_service import create_easyship_shipment
-
+from firebase_admin import firestore
 
 def get_current_time_iso() -> str:
     """Utility to get the current timestamp in ISO 8601 format."""
@@ -51,7 +54,16 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
     )
 
     try:
-        # 1. Generate a NEW, UNIQUE UUID for this specific order
+        if order_data.payment_method.lower() == "cod":
+            pending_cod = db.collection("orders").where("user_id", "==", order_data.user_id).where("payment_method", "==", "cod").where("status", "==", "pending").get()
+            if len(pending_cod) >= 3:
+                raise ValueError("Anti-spam: You have reached the maximum of 3 pending COD orders.")
+
+        # 1. RESERVE STOCK FIRST
+        # Will throw ValueError if stock is insufficient
+        batch_reserve_order_stock_service(order_data.items)
+
+        # 2. Generate a NEW, UNIQUE UUID for this specific order
         # THIS PREVENTS OVERWRITING — always use uuid4
         order_id = str(uuid.uuid4())
 
@@ -83,7 +95,9 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
             "logistic_provider": order_data.logistic_provider or "Standard Logistics",
             "tracking_number": None,
             "status": OrderStatus.PENDING.value,  # Initial status (starts pending)
+            "payment_method": order_data.payment_method,
             "payment_status": "unpaid",  # Payment pending
+            "is_cod_confirmed": False,
             "created_at": now,
             "updated_at": now,
             "status_history": [
@@ -139,6 +153,11 @@ def create_order_service(order_data: OrderCreateRequest) -> dict:
         return order_dict
 
     except Exception as e:
+        # Revert stock if order creation completely fails after reservation
+        try:
+            batch_revert_order_stock_service(order_data.items)
+        except Exception:
+            pass
         print(f"[ORDER ERROR] Failed: {str(e)}")
         raise e
 
@@ -150,6 +169,14 @@ def buy_now_service(buy_request: BuyNowRequest) -> dict:
     )
 
     try:
+        if buy_request.payment_method.lower() == "cod":
+            pending_cod = db.collection("orders").where("user_id", "==", buy_request.user_id).where("payment_method", "==", "cod").where("status", "==", "pending").get()
+            if len(pending_cod) >= 3:
+                raise ValueError("Anti-spam: You have reached the maximum of 3 pending COD orders.")
+
+        # 0. RESERVE STOCK FIRST
+        batch_reserve_order_stock_service([buy_request])
+
         # 1. Fetch the product details to get exact pricing and seller
         product_ref = db.collection("products").document(buy_request.product_id)
         product_doc = product_ref.get()
@@ -198,7 +225,9 @@ def buy_now_service(buy_request: BuyNowRequest) -> dict:
             "logistic_provider": "Standard Logistics",
             "tracking_number": None,
             "status": OrderStatus.PENDING.value,
+            "payment_method": buy_request.payment_method,
             "payment_status": "unpaid",
+            "is_cod_confirmed": False,
             "created_at": now,
             "updated_at": now,
             "status_history": [
@@ -230,6 +259,10 @@ def buy_now_service(buy_request: BuyNowRequest) -> dict:
         return order_dict
 
     except Exception as e:
+        try:
+            batch_revert_order_stock_service([buy_request])
+        except Exception:
+            pass
         print(f"[BUY NOW ERROR] Failed: {str(e)}")
         raise e
 
@@ -325,6 +358,20 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
             raise ValueError(
                 f"Invalid order status transition from {current_status.value} to {new_status.value}"
             )
+
+        # 🚨 PAYMENT LOCK VALIDATION 🚨
+        if new_status == OrderStatus.PROCESSING:
+            payment_method = order_doc.get("payment_method", "online").lower()
+            payment_status = order_doc.get("payment_status", "unpaid").lower()
+            is_cod_confirmed = order_doc.get("is_cod_confirmed", False)
+            
+            if payment_method == "online" and payment_status != "paid":
+                print(f"[STATUS BLOCKED - UNPAID] Cannot process online order {order_id} because payment is {payment_status}")
+                raise ValueError("Online orders must be paid before processing.")
+            
+            if payment_method == "cod" and not is_cod_confirmed:
+                print(f"[STATUS BLOCKED - COD NOT CONFIRMED] Cannot process COD order {order_id}")
+                raise ValueError("COD orders must be confirmed by the buyer before processing.")
 
         now = get_current_time_iso()
         
@@ -430,8 +477,15 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
                 update_data["notes"] = f"Easyship API Failure: {str(e)}"
                 # Continue so the status update still happens but to EXCEPTION
 
+        # 🚨 DELIVERY (COD PAYMENT) 🚨
+        if new_status == OrderStatus.DELIVERED:
+            payment_method = order_doc.get("payment_method", "online").lower()
+            if payment_method == "cod":
+                print(f"[COD PAYMENT COLLECTED] Order {order_id} DELIVERED. Marking as paid.")
+                update_data["payment_status"] = "paid"
+
         # Update order status and append to status_history list
-        from firebase_admin import firestore
+
         update_data["status_history"] = firestore.ArrayUnion([
             {
                 "timestamp": now,
@@ -441,12 +495,12 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
             }
         ])
         order_ref.update(update_data)
-
-        # 🚨 STOCK DEDUCTION: Deduct stock when DELIVERED 🚨
-        if new_status == OrderStatus.DELIVERED:
-            print(f"[STOCK] Order {order_id} DELIVERED. Deducting stock for items.")
+                
+        # 🚨 STOCK REVERSION 🚨
+        if new_status == OrderStatus.CANCELLED:
+            print(f"[STOCK REVERSION] Order {order_id} CANCELLED. Reverting stock.")
             items = order_doc.get("items", [])
-            batch_deduct_order_stock_service(items)
+            batch_revert_order_stock_service(items)
 
         # Log status transition
         db.collection("orders").document(order_id).collection("status_history").add(
@@ -507,6 +561,47 @@ def update_order_payment_service(order_id: str, new_payment_status: str) -> dict
         return final_doc
     except Exception as e:
         print(f"[UPDATE PAYMENT STATUS ERROR] {str(e)}")
+        raise e
+
+def confirm_cod_service(order_id: str) -> dict:
+    """Mark a COD order as confirmed by the buyer."""
+    try:
+        order_ref = db.collection("orders").document(order_id)
+        order_doc = order_ref.get()
+        if not order_doc.exists:
+            raise ValueError(f"Order {order_id} not found")
+
+        payment_method = order_doc.get("payment_method", "online").lower()
+        if payment_method != "cod":
+            raise ValueError("Order is not a Cash on Delivery order.")
+            
+        if order_doc.get("is_cod_confirmed", False):
+            raise ValueError("COD order is already confirmed.")
+
+        now = get_current_time_iso()
+        order_ref.update(
+            {
+                "is_cod_confirmed": True, 
+                "updated_at": now
+            }
+        )
+        
+        # Log status transition conceptually (no state change, just payment auth)
+        db.collection("orders").document(order_id).collection("status_history").add(
+            {
+                "timestamp": now,
+                "old_status": order_doc.get("status"),
+                "new_status": order_doc.get("status"),
+                "updated_by": "buyer",
+                "notes": "COD Order Confirmed"
+            }
+        )
+
+        final_doc = order_ref.get().to_dict()
+        final_doc["id"] = order_id
+        return final_doc
+    except Exception as e:
+        print(f"[CONFIRM COD ERROR] {str(e)}")
         raise e
 
 def get_order_status_history(order_id: str) -> list:

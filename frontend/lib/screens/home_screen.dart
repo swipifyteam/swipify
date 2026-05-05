@@ -189,21 +189,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // Swipify Logo Section — use Flexible so it shrinks on small screens
           Flexible(
             flex: 0,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.shopping_bag_rounded, size: 22, color: SwipifyTheme.accentColor),
-                const SizedBox(width: 4),
-                Text(
-                  'Swipify',
-                  style: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: SwipifyTheme.primaryColor,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ],
+            child: Image.asset(
+              'assets/images/logo.png',
+              height: 32,
+              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 10),

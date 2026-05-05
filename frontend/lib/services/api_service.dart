@@ -858,7 +858,7 @@ class ApiService {
   }
 
   static Future<List<ReviewModel>> getUserReviews(String uid) async {
-    final response = await http.get(Uri.parse('$baseUrl/user/$uid/reviews'));
+    final response = await http.get(Uri.parse('$baseUrl/users/$uid/reviews'));
     if (response.statusCode == 200) {
       final List<dynamic> list = json.decode(response.body);
       return list.map((r) => ReviewModel.fromJson(r)).toList();

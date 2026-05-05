@@ -83,13 +83,9 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // BRAND LOGO
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: SwipifyTheme.primaryColor.withValues(alpha: 0.05),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.shopping_bag_rounded, size: 64, color: SwipifyTheme.primaryColor),
+              Image.asset(
+                'assets/images/logo.png',
+                height: 100,
               ),
               const SizedBox(height: 16),
               Text(

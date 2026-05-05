@@ -44,8 +44,15 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   }
 
   @override
-  Future<void> signUpWithEmail(String email, String password, String displayName) async {
-    // Default mock behavior
+  Future<AppUser?> signUpWithEmail(
+      String email, String password, String displayName, {
+      String? username,
+      String? phoneNumber,
+      String? gender,
+      String? dateOfBirth,
+      bool signOutAfter = true,
+  }) async {
+    return _user;
   }
 
   @override
@@ -79,10 +86,28 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   Future<void> toggleFollowSeller(String sellerId) async {}
 
   @override
-  Future<void> toggleLikeProduct(String productId) async {}
-
-  @override
   Future<AppUser?> waitForProfile({Duration timeout = const Duration(seconds: 5)}) async {
     return _user;
   }
+
+  @override
+  Future<void> fetchSignupConfig() async {}
+
+  @override
+  Future<void> loginWithPhone(String phoneNumber) async {}
+
+  @override
+  Future<AppUser?> verifyOTP(String smsCode) async => _user;
+
+  @override
+  Future<Map<String, dynamic>?> fetchUserByPhone(String phone) async => null;
+
+  @override
+  Future<void> deleteAccount() async {}
+
+  @override
+  Future<void> updateEmail(String newEmail) async {}
+
+  @override
+  void updatePhoneNumberLocally(String newPhone) {}
 }

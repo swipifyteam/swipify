@@ -77,4 +77,10 @@ class MockUserProvider extends ChangeNotifier implements UserProvider {
     _claimedVoucherIds = [];
     notifyListeners();
   }
+
+  @override
+  Future<void> updateEmail(String uid, String newEmail) async {}
+
+  @override
+  Future<void> updatePhoneNumber(String uid, String newPhone) async {}
 }

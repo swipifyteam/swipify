@@ -61,6 +61,7 @@ class OrderCreateRequest(BaseModel):
     tracking_number: Optional[str] = None
     discount_amount: Optional[float] = 0.0
     voucher_id: Optional[str] = None
+    payment_method: str = "online" # "online" or "cod"
 
 class OrderStatusUpdateRequest(BaseModel):
     status: OrderStatus # Use the Enum for status
@@ -74,6 +75,7 @@ class BuyNowRequest(BaseModel):
     quantity: int
     selected_shipping_option: SelectedShippingOption
     shipping_address: AddressSnapshot
+    payment_method: str = "online"
 
 class StatusHistoryEntry(BaseModel):
     timestamp: str
@@ -89,7 +91,9 @@ class OrderResponse(BaseModel):
     items: List[OrderItem]
     total_price: float
     status: OrderStatus # Use the Enum for status
-    payment_status: str
+    payment_method: Optional[str] = "online"
+    payment_status: Optional[str] = "pending"
+    is_cod_confirmed: Optional[bool] = False
     created_at: str
     updated_at: str
     shipping_details: Optional[SelectedShippingOption] = None
@@ -99,18 +103,23 @@ class OrderResponse(BaseModel):
     discount_amount: Optional[float] = 0.0
     voucher_id: Optional[str] = None
     status_history: Optional[List[StatusHistoryEntry]] = None
+    last_location_update: Optional[str] = None
+    estimated_arrival_time: Optional[str] = None
 
 class TrackingResponse(BaseModel):
     tracking_number: Optional[str]
     status: str
     status_history: List[StatusHistoryEntry]
     courier: Optional[str]
+    last_location_update: Optional[str] = None
+    estimated_arrival_time: Optional[str] = None
 
 class CalculateTotalRequest(BaseModel):
     distance_km: float
     weight_kg: float
     subtotal: float
     shipping_fee: Optional[float] = None
+    provider_id: Optional[str] = "standard"
 
 class CalculateTotalResponse(BaseModel):
     subtotal: float

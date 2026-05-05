@@ -179,6 +179,7 @@ async def paymongo_webhook(request: Request):
                     voucher_id=sg.get("voucher_id"),
                     selected_shipping_option=SelectedShippingOption(**session["shipping_option"]),
                     shipping_address=AddressSnapshot(**session["shipping_address"]),
+                    payment_method="online",
                 )
                 order = create_order_service(order_request)
                 order_id = order["id"]
