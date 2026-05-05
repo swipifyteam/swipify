@@ -13,7 +13,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Import all route modules
-from app.routes import products, categories, cart, vouchers, notifications, users, orders, address, shipping, reviews, admin, support, auth_sms, ai_chat, webhooks
+from app.routes import products, categories, cart, vouchers, notifications, users, orders, address, shipping, reviews, admin, support, auth_sms, auth, ai_chat, webhooks
 from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
@@ -60,6 +60,7 @@ app.include_router(marketing.router)
 app.include_router(admin.router, prefix="/admin", tags=["Admin Dashboard"])
 app.include_router(support.router, prefix="/support", tags=["Support Centre"])
 app.include_router(auth_sms.router, prefix="/auth/sms", tags=["SMS Authentication"])
+app.include_router(auth.router, prefix="/auth", tags=["Email Authentication"])
 app.include_router(chats.router, prefix="/chats", tags=["Chats"])
 app.include_router(ai_chat.router, prefix="/ai", tags=["AI Chatbot"])
 app.include_router(webhooks.router, prefix="/api/webhook", tags=["Webhooks"])

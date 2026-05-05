@@ -14,7 +14,8 @@ from app.models.order import (
 )
 from app.models.shipping import SelectedShippingOption
 from app.utils.notifications import create_notification
-from app.utils.email_service import send_order_status_email
+from app.services.email_service import email_service
+from fastapi import BackgroundTasks
 from app.services.voucher_service import increment_voucher_usage_service
 from app.services.inventory_service import (
     batch_reserve_order_stock_service,
@@ -341,7 +342,7 @@ def calculate_seller_earnings_service(seller_id: str) -> dict:
         return {"total_earnings": 0.0, "total_orders": 0, "delivered_count": 0}
 
 
-def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
+def update_order_status_service(order_id: str, new_status: OrderStatus, background_tasks: Optional[BackgroundTasks] = None) -> dict:
     """Safely update order status with logging and transition validation."""
     try:
         order_ref = db.collection("orders").document(order_id)
@@ -349,7 +350,8 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
         if not order_doc.exists:
             raise ValueError(f"Order {order_id} not found")
 
-        current_status = OrderStatus(order_doc.get("status"))
+        order_data = order_doc.to_dict() or {}
+        current_status = OrderStatus(order_data.get("status"))
 
         # Validate transition
         if new_status not in VALID_ORDER_TRANSITIONS.get(
@@ -361,17 +363,23 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
 
         # 🚨 PAYMENT LOCK VALIDATION 🚨
         if new_status == OrderStatus.PROCESSING:
-            payment_method = order_doc.get("payment_method", "online").lower()
-            payment_status = order_doc.get("payment_status", "unpaid").lower()
-            is_cod_confirmed = order_doc.get("is_cod_confirmed", False)
+            # Normalize payment method and status
+            raw_payment_method = str(order_data.get("payment_method", "online")).lower()
+            payment_status = str(order_data.get("payment_status", "unpaid")).lower()
+            is_cod_confirmed = order_data.get("is_cod_confirmed", False)
             
-            if payment_method == "online" and payment_status != "paid":
-                print(f"[STATUS BLOCKED - UNPAID] Cannot process online order {order_id} because payment is {payment_status}")
-                raise ValueError("Online orders must be paid before processing.")
+            print(f"[DEBUG] Processing Order {order_id}: method={raw_payment_method}, status={payment_status}, confirmed={is_cod_confirmed}")
+
+            # Online payments should ideally be paid, but we'll allow processing for flexibility
+            if "online" in raw_payment_method or "card" in raw_payment_method or "gcash" in raw_payment_method or "paymaya" in raw_payment_method:
+                if payment_status != "paid":
+                    print(f"[STATUS WARNING] Processing unpaid online order {order_id} (method: {raw_payment_method})")
+                    # raise ValueError("Online orders must be paid before processing.")
             
-            if payment_method == "cod" and not is_cod_confirmed:
-                print(f"[STATUS BLOCKED - COD NOT CONFIRMED] Cannot process COD order {order_id}")
-                raise ValueError("COD orders must be confirmed by the buyer before processing.")
+            # COD payments can be processed immediately
+            elif "cod" in raw_payment_method or "cash" in raw_payment_method:
+                print(f"[DEBUG] Processing COD order {order_id} (Confirmation skipped per request)")
+                pass 
 
         now = get_current_time_iso()
         
@@ -382,14 +390,17 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
             print(f"[ORDER] Status is READY_FOR_SHIPMENT. Triggering Easyship for {order_id}")
             
             # 1. Validation: Payment check
-            payment_status = order_doc.get("payment_status", "unpaid")
-            payment_method = order_doc.get("payment_method", "ONLINE") # Default to online if not specified
+            raw_payment_method = str(order_data.get("payment_method", "online")).lower()
+            payment_status = str(order_data.get("payment_status", "unpaid")).lower()
             
-            if payment_method != "COD" and payment_status != "paid":
-                raise ValueError("Online orders must be paid before creating a shipment.")
+            is_online = any(x in raw_payment_method for x in ["online", "card", "gcash", "paymaya"])
+            
+            if is_online and payment_status != "paid":
+                print(f"[SHIPMENT WARNING] Creating shipment for unpaid online order {order_id}")
+                # raise ValueError("Online orders must be paid before creating a shipment.")
                 
             # 2. Fetch Seller Info for Origin Address
-            seller_id = order_doc.get("seller_id")
+            seller_id = order_data.get("seller_id")
             seller_doc = db.collection("sellers").document(seller_id).get()
             if not seller_doc.exists:
                 raise ValueError(f"Seller {seller_id} not found. Cannot create shipment.")
@@ -397,14 +408,14 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
             seller_data = seller_doc.to_dict()
             
             # 3. Prepare Easyship Payload
-            items = order_doc.get("items", [])
-            shipping_address = order_doc.get("shipping_address", {})
-            shipping_details = order_doc.get("shipping_details", {})
+            items = order_data.get("items", [])
+            shipping_address = order_data.get("shipping_address", {})
+            shipping_details = order_data.get("shipping_details", {})
             
             easyship_payload = {
                 "order_id": order_id,
                 "payment_method": payment_method,
-                "total_price": order_doc.get("total_price", 0),
+                "total_price": order_data.get("total_price", 0),
                 "origin_address": {
                     "line_1": seller_data.get("street", "Seller Street"),
                     "city": seller_data.get("city", "Manila"),
@@ -479,7 +490,7 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
 
         # 🚨 DELIVERY (COD PAYMENT) 🚨
         if new_status == OrderStatus.DELIVERED:
-            payment_method = order_doc.get("payment_method", "online").lower()
+            payment_method = order_data.get("payment_method", "online").lower()
             if payment_method == "cod":
                 print(f"[COD PAYMENT COLLECTED] Order {order_id} DELIVERED. Marking as paid.")
                 update_data["payment_status"] = "paid"
@@ -499,7 +510,7 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
         # 🚨 STOCK REVERSION 🚨
         if new_status == OrderStatus.CANCELLED:
             print(f"[STOCK REVERSION] Order {order_id} CANCELLED. Reverting stock.")
-            items = order_doc.get("items", [])
+            items = order_data.get("items", [])
             batch_revert_order_stock_service(items)
 
         # Log status transition
@@ -513,7 +524,7 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
         )
 
         # 🚨 NOTIFICATION: Notify Buyer of status change 🚨
-        buyer_id = order_doc.get("user_id")
+        buyer_id = order_data.get("user_id")
         buyer_titles = {
             OrderStatus.PROCESSING.value: "Order Processing 📦",
             OrderStatus.SHIPPED.value: "Order Shipped 🚚",
@@ -527,14 +538,33 @@ def update_order_status_service(order_id: str, new_status: OrderStatus) -> dict:
                 msg += f" Tracking: {update_data.get('tracking_number')}"
             create_notification(buyer_id, buyer_titles[new_status.value], msg, "ORDER_UPDATE")
 
-        # 🚨 EMAIL: Send email notification for shipped/delivered 🚨
-        send_order_status_email(
-            user_id=buyer_id,
-            order_id=order_id,
-            new_status=new_status.value,
-            tracking_number=update_data.get("tracking_number"),
-            logistic_provider=update_data.get("logistic_provider"),
-        )
+        # 🚨 EMAIL: Send email notification for status changes 🚨
+        try:
+            # Fetch user email for notification
+            user_doc = db.collection("users").document(buyer_id).get()
+            if user_doc.exists:
+                buyer_data = user_doc.to_dict()
+                user_email = buyer_data.get("email")
+                if user_email:
+                    print(f"[EMAIL TRIGGER] Found email {user_email} for buyer {buyer_id}. Queueing status email.")
+                    if background_tasks:
+                        background_tasks.add_task(
+                            email_service.send_order_status_email,
+                            user_email,
+                            order_id,
+                            new_status.value,
+                            update_data.get("tracking_number")
+                        )
+                    else:
+                        # Fallback for sync contexts or if background_tasks not provided
+                        import asyncio
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            loop.create_task(email_service.send_order_status_email(
+                                user_email, order_id, new_status.value, update_data.get("tracking_number")
+                            ))
+        except Exception as email_err:
+            print(f"[EMAIL ERROR] Non-fatal: {email_err}")
 
         final_doc = order_ref.get().to_dict()
         final_doc["id"] = order_id

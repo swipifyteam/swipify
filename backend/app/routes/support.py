@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from firebase_client import db
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
@@ -6,10 +6,13 @@ import uuid
 import json
 from typing import List, Optional
 
+from app.services.email_service import email_service
+
 router = APIRouter()
 
 @router.post("/tickets")
 async def create_support_ticket(
+    background_tasks: BackgroundTasks,
     user_id: str = Form(...),
     user_name: str = Form(...),
     user_email: str = Form(...),
@@ -44,8 +47,12 @@ async def create_support_ticket(
         }
         
         doc_ref = db.collection("support_tickets").add(ticket_data)
+        ticket_id = doc_ref[1].id
+
+        # Send confirmation email
+        background_tasks.add_task(email_service.send_support_ticket_email, user_email, ticket_id)
         
-        return {"success": True, "ticket_id": doc_ref[1].id}
+        return {"success": True, "ticket_id": ticket_id}
     except Exception as e:
         print(f"[SUPPORT ERROR] {e}")
         raise HTTPException(status_code=500, detail=str(e))

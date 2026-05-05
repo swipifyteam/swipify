@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     # Google Maps
     MAPAPI_KEY: str = ""
 
+    # SMTP Settings
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    FROM_EMAIL: str = "noreply@swipify.app"
+    FROM_NAME: str = "Swipify"
+
 @lru_cache()
 def get_settings():
     return Settings()

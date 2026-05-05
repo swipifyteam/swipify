@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Path, Body
+from fastapi import APIRouter, HTTPException, Path, Body, BackgroundTasks
 from typing import List
 from app.models.order import (
     OrderCreateRequest,
@@ -168,13 +168,14 @@ async def get_seller_stats(seller_id: str = Path(..., description="The ID of the
 
 @router.put("/{order_id}/status", response_model=OrderResponse)
 async def update_order_status(
+    background_tasks: BackgroundTasks,
     order_id: str = Path(..., description="The ID of the order"),
     update_data: OrderStatusUpdateRequest = Body(...)
 ):
     """Update order status. Typically called by the seller."""
     print(f"[ORDERS API] PUT /orders/{order_id}/status — new status={update_data.status}")
     try:
-        updated_order = update_order_status_service(order_id, update_data.status)
+        updated_order = update_order_status_service(order_id, update_data.status, background_tasks)
         return updated_order
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -22,8 +22,8 @@ class OrderStatus(str, Enum):
 VALID_ORDER_TRANSITIONS = {
     OrderStatus.PENDING: {OrderStatus.PROCESSING, OrderStatus.PAID, OrderStatus.CANCELLED},
     OrderStatus.PAID: {OrderStatus.PROCESSING, OrderStatus.CANCELLED},
-    OrderStatus.PROCESSING: {OrderStatus.READY_FOR_SHIPMENT, OrderStatus.CANCELLED},
-    OrderStatus.READY_FOR_SHIPMENT: {OrderStatus.LABEL_CREATED, OrderStatus.CANCELLED},
+    OrderStatus.PROCESSING: {OrderStatus.READY_FOR_SHIPMENT, OrderStatus.SHIPPED, OrderStatus.CANCELLED},
+    OrderStatus.READY_FOR_SHIPMENT: {OrderStatus.LABEL_CREATED, OrderStatus.SHIPPED, OrderStatus.CANCELLED},
     OrderStatus.LABEL_CREATED: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
     OrderStatus.SHIPPED: {OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.EXCEPTION},
     OrderStatus.IN_TRANSIT: {OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.EXCEPTION},

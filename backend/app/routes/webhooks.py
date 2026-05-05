@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Request, HTTPException, Header
 from app.services.easyship_service import validate_webhook_key, map_easyship_event_to_status
+from app.services.email_service import email_service
+from app.utils.notifications import create_notification
 from firebase_client import db
 from firebase_admin import firestore
 import datetime
+from fastapi import APIRouter, Request, HTTPException, Header, BackgroundTasks
 
 router = APIRouter()
 
 @router.post("/easyship")
 async def easyship_webhook(
     request: Request, 
+    background_tasks: BackgroundTasks,
     x_api_key: str = Header(None, alias="x-api-key")
 ):
     """
@@ -97,6 +100,39 @@ async def easyship_webhook(
                 order_ref.update({
                     "status_history": firestore.ArrayUnion([status_history_entry])
                 })
+
+                # 🚨 NOTIFICATION & EMAIL TRIGGER 🚨
+                try:
+                    order_doc_data = order_ref.get().to_dict()
+                    buyer_id = order_doc_data.get("user_id")
+                    
+                    # 1. In-App Notification
+                    buyer_titles = {
+                        "processing": "Order Processing 📦",
+                        "shipped": "Order Shipped 🚚",
+                        "out_for_delivery": "Out for Delivery! 🚚",
+                        "delivered": "Order Delivered 🎁",
+                        "completed": "Order Completed! ✨",
+                        "exception": "Order Update ⚠️",
+                    }
+                    if mapped_status in buyer_titles:
+                        msg = f"Your order #{order_id[:8].upper()} is now {mapped_status.replace('_', ' ')}."
+                        create_notification(buyer_id, buyer_titles[mapped_status], msg, "ORDER_UPDATE")
+
+                    # 2. Email Notification
+                    user_doc = db.collection("users").document(buyer_id).get()
+                    if user_doc.exists:
+                        user_email = user_doc.to_dict().get("email")
+                        if user_email:
+                            background_tasks.add_task(
+                                email_service.send_order_status_email,
+                                user_email,
+                                order_id,
+                                mapped_status,
+                                shipment_doc.to_dict().get("tracking_number")
+                            )
+                except Exception as notif_err:
+                    print(f"[WEBHOOK NOTIF ERROR] {notif_err}")
 
         return {"status": "success", "message": "Shipment updated"}
 
