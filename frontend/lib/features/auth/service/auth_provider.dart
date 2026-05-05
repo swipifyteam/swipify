@@ -18,7 +18,10 @@ class AuthProvider extends ChangeNotifier {
   String? _error;
   String? _verificationId;
   StreamSubscription<DocumentSnapshot>? _userStreamSubscription;
-  Map<String, dynamic>? _signupConfig;
+  Map<String, dynamic> _signupConfig = {
+    'step_labels': ['Contact', 'Security', 'Profile', 'Address'],
+    'password_min_length': 8,
+  };
   String? _pendingPhone;
 
   AppUser? get user => _user;
@@ -56,8 +59,8 @@ class AuthProvider extends ChangeNotifier {
   Future<void> fetchSignupConfig() async {
     try {
       final doc = await FirebaseFirestore.instance.collection('settings').doc('signup_config').get();
-      if (doc.exists) {
-        _signupConfig = doc.data();
+      if (doc.exists && doc.data() != null) {
+        _signupConfig = doc.data()!;
         debugPrint('[AUTH] Fetched data-driven signup config');
         notifyListeners();
       }
@@ -106,6 +109,34 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('[AUTH] User signed out — clearing state');
       _user = null;
       notifyListeners();
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchUserByPhone(String phone) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('phone', isEqualTo: phone)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        // Add a masked email for UI display if needed
+        if (data['email'] != null) {
+          final email = data['email'] as String;
+          final parts = email.split('@');
+          if (parts.length == 2) {
+            final name = parts[0];
+            final domain = parts[1];
+            data['email_masked'] = "${name[0]}***@$domain";
+          }
+        }
+        return data;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[AUTH] fetchUserByPhone error: $e');
+      return null;
     }
   }
 
@@ -388,15 +419,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>?> fetchUserByPhone(String phone) async {
-    try {
-      return await ApiService.getUserByPhone(phone);
-    } catch (e) {
-      debugPrint('[AUTH] fetchUserByPhone error: $e');
-      return null;
-    }
-  }
-
   // ── Email / Password Login ──────────────────────────────────────────────────
 
   Future<AppUser?> loginWithEmail(String email, String password) async {
@@ -431,81 +453,54 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Email / Password Signup ─────────────────────────────────────────────────
 
-  Future<AppUser?> signUpWithEmail(
-      String email, String password, String displayName, {
-      String? username,
-      String? phoneNumber,
-      String? gender,
-      String? dateOfBirth,
-      bool signOutAfter = true,
+  Future<AppUser?> signUpWithEmail({
+    required String email,
+    required String password,
+    required String name,
+    required String phone,
+    required Map<String, String> address,
   }) async {
-    debugPrint('[AUTH] Starting signup for: $email');
+    debugPrint('[AUTH] Starting unified signup for: $email');
     _setLoading(true);
     _clearError();
 
     try {
-      final userCred =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      // 1. Call backend to create user & address
+      // The backend handles: Firebase Auth User creation, Firestore User doc, and Firestore Address doc.
+      final response = await ApiService.signup({
+        'name': name.trim(),
+        'email': email.trim(),
+        'password': password.trim(),
+        'phone': phone.trim(),
+        'address': address,
+      });
+
+      debugPrint('[AUTH] Backend signup success for UID: ${response['uid'] ?? response['user_id']}');
+
+      // 2. Sign in locally to establish Firebase session
+      // Since the backend already created the user, we just need to sign in.
+      final userCred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
       );
-      // Set display name immediately after account creation
-      await userCred.user?.updateDisplayName(displayName.trim());
-      await userCred.user?.reload();
 
-      // [AUTH FIX] Create Firestore user document with REAL email/name
-      // This prevents the placeholder bug from ever triggering.
-      final uid = userCred.user?.uid;
-      if (uid != null) {
-        final safeName = displayName.trim().isNotEmpty
-            ? displayName.trim()
-            : 'User ${uid.substring(uid.length - 4)}';
-        final safeEmail = email.trim();
-
-        final userData = <String, dynamic>{
-          'id': uid,
-          'name': safeName,
-          'display_name': safeName,
-          'email': safeEmail,
-          'role': 'buyer',
-          'created_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-        };
-
-        // Append optional Shopee-style profile fields
-        if (username != null && username.trim().isNotEmpty) {
-          userData['username'] = username.trim();
-        }
-        if (phoneNumber != null && phoneNumber.trim().isNotEmpty) {
-          userData['phone_number'] = phoneNumber.trim();
-        }
-        if (gender != null && gender.trim().isNotEmpty) {
-          userData['gender'] = gender.trim();
-        }
-        if (dateOfBirth != null && dateOfBirth.trim().isNotEmpty) {
-          userData['date_of_birth'] = dateOfBirth.trim();
-        }
-
-        await FirebaseFirestore.instance.collection('users').doc(uid).set(userData);
-        debugPrint('[AUTH FIX] Real Email/Name mapped for UID: $uid — '
-            'name=$safeName, email=$safeEmail');
-      }
-
-      // Sign out so user goes through proper login flow if requested
-      if (signOutAfter) {
-        await FirebaseAuth.instance.signOut();
-      } else {
-        // If we don't sign out, we should update _user locally
+      if (userCred.user != null) {
+        // Fetch full profile (including roles and newly created address) immediately
         final userData = await ApiService.getUserData(userCred.user!.uid);
         _user = AppUser.fromFirebaseUser(userCred.user!, extraData: userData);
+        notifyListeners();
+        return _user;
       }
-      debugPrint('[AUTH] Signup success: ${userCred.user?.uid}');
-      return _user;
+      return null;
     } on FirebaseAuthException catch (e) {
-      debugPrint('[AUTH] Signup error: ${e.code}');
+      debugPrint('[AUTH] Firebase Auth error during signup sign-in: ${e.code}');
       _error = _mapAuthError(e.code);
       notifyListeners();
       rethrow;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return null;
     } finally {
       _setLoading(false);
     }

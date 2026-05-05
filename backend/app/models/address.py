@@ -6,14 +6,14 @@ class AddressCreateRequest(BaseModel):
     user_id: str
     full_name: str = Field(..., min_length=2)
     phone: str = Field(..., pattern=r'^(\+|0)?[0-9]{7,15}$') 
-    region: str = Field(..., min_length=1)
+    province: str = Field(..., min_length=1)
     city: str = Field(..., min_length=1)
     barangay: str = Field(..., min_length=1)
     street: str = Field(..., min_length=1)
     postal_code: str = Field(..., min_length=4)
     is_default: Optional[bool] = False
 
-    @field_validator('full_name', 'phone', 'region', 'city', 'barangay', 'street', 'postal_code')
+    @field_validator('full_name', 'phone', 'province', 'city', 'barangay', 'street', 'postal_code')
     def not_empty(cls, v):
         if isinstance(v, str) and not v.strip():
             raise ValueError('Field cannot be empty or just whitespace')
@@ -22,7 +22,7 @@ class AddressCreateRequest(BaseModel):
 class AddressUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2)
     phone: Optional[str] = Field(None, pattern=r'^(\+|0)?[0-9]{7,15}$')
-    region: Optional[str] = Field(None)
+    province: Optional[str] = Field(None)
     city: Optional[str] = Field(None)
     barangay: Optional[str] = Field(None)
     street: Optional[str] = Field(None)
@@ -34,7 +34,7 @@ class AddressResponse(BaseModel):
     user_id: str
     full_name: str
     phone: str
-    region: str
+    province: str
     city: str
     barangay: str
     street: str

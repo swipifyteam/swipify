@@ -6,6 +6,8 @@ from pydantic import BaseModel, EmailStr
 import time
 import logging
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+from app.models.address import AddressCreateRequest
+from app.services.address_service import create_address_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,6 +19,20 @@ class OTPRequest(BaseModel):
 class OTPVerifyRequest(BaseModel):
     email: EmailStr
     otp: str
+
+class AddressSignup(BaseModel):
+    street: str
+    barangay: str
+    city: str
+    province: str
+    postal_code: str
+
+class SignupRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    phone: str
+    address: AddressSignup
 
 @router.post("/send-otp")
 async def send_email_otp(background_tasks: BackgroundTasks, request: OTPRequest):
@@ -83,4 +99,69 @@ async def verify_email_otp(request: OTPVerifyRequest):
         raise
     except Exception as e:
         logger.error(f"Error in verify_email_otp: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/signup")
+async def signup(request: SignupRequest):
+    """
+    Complete Signup:
+    1. Create Firebase Auth user
+    2. Save user in Firestore
+    3. Create address document
+    4. Set is_default = true
+    """
+    try:
+        # 1. Create Firebase Auth user
+        try:
+            auth_user = firebase_auth.create_user(
+                email=request.email,
+                password=request.password,
+                display_name=request.name,
+                phone_number=request.phone if request.phone.startswith("+") else None # Firebase requires + for phone
+            )
+            user_id = auth_user.uid
+            print(f"[USER CREATED] UID: {user_id}")
+        except Exception as e:
+            if "EMAIL_EXISTS" in str(e) or "already in use" in str(e):
+                raise HTTPException(status_code=400, detail="Email already exists")
+            raise HTTPException(status_code=400, detail=f"Auth Error: {str(e)}")
+
+        # 2. Save user in Firestore
+        user_data = {
+            "name": request.name,
+            "email": request.email,
+            "phone": request.phone,
+            "role": "buyer",
+            "created_at": SERVER_TIMESTAMP,
+            "updated_at": SERVER_TIMESTAMP,
+            "email_verified": False
+        }
+        db.collection("users").document(user_id).set(user_data)
+
+        # 3. Create address document
+        address_data = AddressCreateRequest(
+            user_id=user_id,
+            full_name=request.name,
+            phone=request.phone,
+            street=request.address.street,
+            barangay=request.address.barangay,
+            city=request.address.city,
+            province=request.address.province,
+            postal_code=request.address.postal_code,
+            is_default=True
+        )
+        
+        create_address_service(address_data)
+        print(f"[DEFAULT ADDRESS CREATED] for UID: {user_id}")
+
+        return {
+            "status": "ok",
+            "message": "User created successfully",
+            "user_id": user_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in signup: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

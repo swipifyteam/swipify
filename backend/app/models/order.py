@@ -44,7 +44,7 @@ class OrderItem(BaseModel):
 class AddressSnapshot(BaseModel):
     full_name: str
     phone: str
-    region: str
+    province: str
     city: str
     barangay: str
     street: str

@@ -66,6 +66,19 @@ class ApiService {
     throw Exception('DELETE $path failed: ${response.statusCode} - ${response.body}');
   }
 
+  static Future<Map<String, dynamic>> signup(Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/signup'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(data),
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return json.decode(response.body);
+    }
+    final error = json.decode(response.body);
+    throw Exception(error['detail'] ?? 'Signup failed');
+  }
+
   // ── SMS Authentication ───────────────────────────────────────────────────
 
   static Future<void> sendSmsOtp(String phoneNumber, String uid) async {

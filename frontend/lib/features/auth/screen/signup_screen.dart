@@ -39,6 +39,13 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _selectedGender;
   DateTime? _selectedDOB;
 
+  // Step 4: Address
+  final _streetController = TextEditingController();
+  final _barangayController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _provinceController = TextEditingController();
+  final _postalCodeController = TextEditingController();
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -48,6 +55,11 @@ class _SignupScreenState extends State<SignupScreen> {
     _confirmController.dispose();
     _nameController.dispose();
     _usernameController.dispose();
+    _streetController.dispose();
+    _barangayController.dispose();
+    _cityController.dispose();
+    _provinceController.dispose();
+    _postalCodeController.dispose();
     super.dispose();
   }
 
@@ -74,9 +86,11 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
     
+    
     if (_currentStep == 1 && !_validateStep2()) return;
+    if (_currentStep == 2 && !_validateStep3()) return;
 
-    if (_currentStep < 2) {
+    if (_currentStep < 3) {
       setState(() => _currentStep++);
       _pageController.animateToPage(_currentStep,
           duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
@@ -133,6 +147,23 @@ class _SignupScreenState extends State<SignupScreen> {
     return true;
   }
 
+  bool _validateStep3() {
+    if (_nameController.text.trim().isEmpty) {
+      _showError("Full name is required");
+      return false;
+    }
+    return true;
+  }
+
+  bool _validateStep4() {
+    if (_streetController.text.trim().isEmpty) { _showError("Street address is required"); return false; }
+    if (_barangayController.text.trim().isEmpty) { _showError("Barangay is required"); return false; }
+    if (_cityController.text.trim().isEmpty) { _showError("City is required"); return false; }
+    if (_provinceController.text.trim().isEmpty) { _showError("Province is required"); return false; }
+    if (_postalCodeController.text.trim().isEmpty) { _showError("Postal code is required"); return false; }
+    return true;
+  }
+
   int _passwordStrength(String pw) {
     int score = 0;
     if (pw.length >= 8) score++;
@@ -144,39 +175,39 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _handleSignup() async {
+    if (!_validateStep4()) return;
+
     final name = _nameController.text.trim();
-    if (name.isEmpty) { _showError("Full name is required"); return; }
+    final address = {
+      'street': _streetController.text.trim(),
+      'barangay': _barangayController.text.trim(),
+      'city': _cityController.text.trim(),
+      'province': _provinceController.text.trim(),
+      'postal_code': _postalCodeController.text.trim(),
+    };
 
     final auth = context.read<AuthProvider>();
     try {
       await auth.signUpWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-        name,
-        username: _usernameController.text.trim().isNotEmpty ? _usernameController.text.trim() : null,
-        phoneNumber: _phoneController.text.trim(),
-        gender: _selectedGender,
-        dateOfBirth: _selectedDOB != null ? DateFormat('yyyy-MM-dd').format(_selectedDOB!) : null,
-        signOutAfter: false, // Don't sign out so we can link phone!
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        name: name,
+        phone: _phoneController.text.trim(),
+        address: address,
       );
 
       if (!mounted) return;
 
-      // Start OTP verification flow
-      // Sanitize: Firebase E.164 needs +[country][number] without spaces
-      final phone = _phoneController.text.trim().replaceAll(' ', '');
-      await auth.loginWithPhone(phone);
-
-      if (mounted && auth.error == null) {
-         Navigator.pushReplacement(
-           context,
-           MaterialPageRoute(builder: (_) => const OTPVerificationScreen()),
-         );
-      } else if (mounted && auth.error != null) {
-         _showError(auth.error!);
-         // Fallback just in case OTP fails, we can just log out or go to login
+      if (auth.error == null) {
+        _showSuccess("Account created successfully!");
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainNavScreen()),
+          (route) => false,
+        );
+      } else {
+        _showError(auth.error!);
       }
-
     } catch (e) {
       if (mounted) _showError(auth.error ?? "Signup failed");
     }
@@ -257,6 +288,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 _buildStep1Contact(),
                 _buildStep2Security(auth),
                 _buildStep3Profile(auth),
+                _buildStep4Address(auth),
               ],
             ),
           ),
@@ -535,6 +567,49 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
 
           const SizedBox(height: 40),
+          _buildPrimaryButton("CONTINUE", _nextStep),
+        ],
+      ),
+    );
+  }
+
+  // ── STEP 4: ADDRESS ────────────────────────────────────────────────────────
+  Widget _buildStep4Address(AuthProvider auth) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Default Shipping Address", style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+          const SizedBox(height: 6),
+          Text("This will be your default delivery address.", style: GoogleFonts.inter(fontSize: 13, color: SwipifyTheme.textSecondary, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 32),
+
+          _buildLabel("Street / Building / House No. *"),
+          const SizedBox(height: 8),
+          _buildField(_streetController, "123 Rizal St.", Icons.location_on_outlined),
+
+          const SizedBox(height: 20),
+          _buildLabel("Barangay *"),
+          const SizedBox(height: 8),
+          _buildField(_barangayController, "Barangay 123", Icons.map_outlined),
+
+          const SizedBox(height: 20),
+          _buildLabel("City / Municipality *"),
+          const SizedBox(height: 8),
+          _buildField(_cityController, "Manila", Icons.location_city_outlined),
+
+          const SizedBox(height: 20),
+          _buildLabel("Province *"),
+          const SizedBox(height: 8),
+          _buildField(_provinceController, "Metro Manila", Icons.terrain_outlined),
+
+          const SizedBox(height: 20),
+          _buildLabel("Postal Code *"),
+          const SizedBox(height: 8),
+          _buildField(_postalCodeController, "1000", Icons.markunread_mailbox_outlined, keyboardType: TextInputType.number),
+
+          const SizedBox(height: 40),
           _buildPrimaryButton(auth.isLoading ? null : "CREATE ACCOUNT", auth.isLoading ? null : _handleSignup, loading: auth.isLoading),
 
           const SizedBox(height: 20),
@@ -577,6 +652,7 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
     );
   }
+
 
   // ── SHARED WIDGETS ──────────────────────────────────────────────────────────
   Widget _buildLabel(String text) {
