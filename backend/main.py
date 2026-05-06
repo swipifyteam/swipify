@@ -1,4 +1,5 @@
 # main.py
+print("[DEBUG] main.py: Script started")
 # FastAPI application entry point for the Swipify ecommerce backend.
 # Registers all routers and configures CORS for development.
 
@@ -93,6 +94,7 @@ async def debug_config():
     }
 
 @app.get("/")
+
 async def root():
     """Health check endpoint — confirms the Swipify API is running."""
     return {"status": "ok", "message": "Swipify API is running 🚀"}
