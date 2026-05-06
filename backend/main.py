@@ -94,7 +94,13 @@ async def debug_config():
     }
 
 @app.get("/")
-
 async def root():
     """Health check endpoint — confirms the Swipify API is running."""
     return {"status": "ok", "message": "Swipify API is running 🚀"}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 10000))
+    print(f"[DEBUG] Starting uvicorn on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
