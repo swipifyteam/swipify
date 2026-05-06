@@ -1,2 +1,12 @@
 # Firebase service account (keep locally only)
+<<<<<<< HEAD
 serviceAccountKey.json
+=======
+serviceAccountKey.json
+
+.env
+
+# Python cache files
+__pycache__/
+*.pyc
+>>>>>>> develop
