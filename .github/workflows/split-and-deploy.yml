@@ -1,0 +1,33 @@
+name: Split Monorepo → Multi Repo
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "mykhelcs"
+          git config --global user.email "gglennmykhel@gmail.com"
+
+      # 🔹 Split Backend
+      - name: Split Backend
+        run: |
+          git subtree split --prefix=backend -b backend-split
+          git push https://x-access-token:${{ secrets.MULTIREPO_TOKEN }}@github.com/mykhelcs/swipify-backend.git backend-split:main --force
+
+      # 🔹 Split Frontend
+      - name: Split Frontend
+        run: |
+          git subtree split --prefix=frontend -b frontend-split
+          git push https://x-access-token:${{ secrets.MULTIREPO_TOKEN }}@github.com/mykhelcs/swipify-frontend.git frontend-split:main --force
