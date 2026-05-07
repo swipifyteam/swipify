@@ -12,6 +12,9 @@ import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
+import 'package:video_compress/video_compress.dart';
+import 'package:file_picker/file_picker.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -29,8 +32,12 @@ class _AddProductPageState extends State<AddProductPage> {
   final _sizesController = TextEditingController();
   final _colorsController = TextEditingController();
 
-  XFile? _imageFile;
+  List<XFile> _imageFiles = [];
+  XFile? _videoFile;
+  VideoPlayerController? _videoController;
+  
   bool _isUploading = false;
+  String _uploadStatus = 'Publishing product…';
   final ImagePicker _picker = ImagePicker();
 
   static const _categories = [
@@ -47,17 +54,58 @@ class _AddProductPageState extends State<AddProductPage> {
     _descController.dispose();
     _sizesController.dispose();
     _colorsController.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
-  // ── Image Picker ────────────────────────────────────────────────────────────
+  // ── Media Pickers ───────────────────────────────────────────────────────────
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      debugPrint('[PRODUCT] Image selected: ${pickedFile.name}');
-      setState(() => _imageFile = pickedFile);
+  Future<void> _pickImages() async {
+    final pickedFiles = await _picker.pickMultiImage();
+    if (pickedFiles.isNotEmpty) {
+      debugPrint('[PRODUCT] Images selected: ${pickedFiles.length}');
+      setState(() {
+        _imageFiles = pickedFiles;
+      });
     }
+  }
+
+  Future<void> _pickVideo() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['mp4', 'mov', 'avi', 'mkv', 'wmv'],
+      allowMultiple: false,
+    );
+    
+    if (result != null) {
+      final file = result.files.single;
+      final pickedFile = XFile(file.path ?? ''); // path is null on web
+      debugPrint('[PRODUCT] Video selected: ${file.name}');
+      
+      // Dispose old controller
+      await _videoController?.dispose();
+      
+      if (kIsWeb) {
+        _videoController = VideoPlayerController.networkUrl(Uri.parse(file.path ?? ''))
+          ..initialize().then((_) => setState(() {}));
+      } else {
+        _videoController = VideoPlayerController.file(File(file.path!))
+          ..initialize().then((_) => setState(() {}));
+      }
+      
+      setState(() {
+        _videoFile = pickedFile;
+        // Store bytes for web if path is not usable
+      });
+    }
+  }
+
+  Future<void> _removeVideo() async {
+    await _videoController?.dispose();
+    setState(() {
+      _videoFile = null;
+      _videoController = null;
+    });
   }
 
   // ── Submit Form ─────────────────────────────────────────────────────────────
@@ -68,55 +116,101 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    if (_imageFile == null) {
-      _showError('Please select at least one product image.');
+    if (_imageFiles.isEmpty && _videoFile == null) {
+      _showError('Please select at least one image or video.');
       return;
     }
 
-    // ── Get user and seller from providers (NOT from Firebase directly) ──────
     final authProvider = context.read<AuthProvider>();
-    final sellerProvider = context.read<SellerProvider>();
 
     final userId = authProvider.user?.uid;
     if (userId == null) {
-      debugPrint('[PRODUCT] Submit aborted — no authenticated user');
       _showError('Please log in to add a product.');
       return;
     }
 
-    final seller = sellerProvider.seller;
-    if (seller == null) {
-      debugPrint('[PRODUCT] Submit aborted — seller profile not found');
-      _showError(
-          'Seller profile not found. Please ensure your application is approved.');
-      return;
-    }
-
     setState(() => _isUploading = true);
-    debugPrint('[PRODUCT] Creating product: ${_nameController.text}');
-
+    
     try {
-      // ── Step 1: Upload image via API (MCP/FastAPI layer) ──────────────────
-      debugPrint('[API] Uploading product image');
-      final bytes = await _imageFile!.readAsBytes();
-      final imageUrl = await ApiService.uploadSellerDocument(
-        userId,
-        'product_image',
-        bytes,
-        _imageFile!.name,
-        'image/jpeg',
-      );
-      debugPrint('[API] Image uploaded: $imageUrl');
+      List<Map<String, dynamic>> mediaList = [];
+      String? globalThumbnailUrl;
 
-      // ── Step 2: Build product data ────────────────────────────────────────
+      // ── Step 1: Upload Video if exists ────────────────────────────────────
+      if (_videoFile != null) {
+        List<int> videoBytes;
+        
+        if (kIsWeb) {
+          setState(() => _uploadStatus = 'Reading video data…');
+          videoBytes = await _videoFile!.readAsBytes();
+        } else {
+          setState(() => _uploadStatus = 'Compressing video…');
+          debugPrint('[VIDEO] Compressing: ${_videoFile!.name}');
+          
+          MediaInfo? info = await VideoCompress.compressVideo(
+            _videoFile!.path,
+            quality: VideoQuality.MediumQuality,
+            deleteOrigin: false,
+            includeAudio: true,
+          );
+
+          if (info == null || info.file == null) {
+            throw Exception('Video compression failed');
+          }
+          
+          debugPrint('[VIDEO] Compressed size: ${info.file!.lengthSync()}');
+          videoBytes = await info.file!.readAsBytes();
+        }
+
+        setState(() => _uploadStatus = 'Uploading video…');
+        final uploadResult = await ApiService.uploadProductVideo(
+          videoBytes,
+          'vid_${_videoFile!.name}',
+          userId,
+        );
+
+        mediaList.add({
+          'type': 'video',
+          'url': uploadResult['video_url'],
+          'thumbnail_url': uploadResult['thumbnail_url'],
+        });
+        
+        globalThumbnailUrl = uploadResult['thumbnail_url'];
+        debugPrint('[VIDEO] Uploaded: ${uploadResult['video_url']}');
+      }
+
+      // ── Step 2: Upload Images ─────────────────────────────────────────────
+      int currentImg = 1;
+      for (var file in _imageFiles) {
+        setState(() => _uploadStatus = 'Uploading image $currentImg/${_imageFiles.length}…');
+        final bytes = await file.readAsBytes();
+        final imageUrl = await ApiService.uploadProductImage(
+          bytes,
+          file.name,
+          userId,
+        );
+        mediaList.add({
+          'type': 'image',
+          'url': imageUrl,
+        });
+        
+        // Use first image as thumbnail if no video thumbnail
+        globalThumbnailUrl ??= imageUrl;
+        currentImg++;
+      }
+
+      // ── Step 3: Create Product ────────────────────────────────────────────
+      setState(() => _uploadStatus = 'Saving product details…');
+      
       final data = {
-        'sellerId': userId,
         'name': _nameController.text.trim(),
-        'category': _selectedCategory, // product category for browsing
+        'category': _selectedCategory,
         'price': double.tryParse(_priceController.text) ?? 0.0,
         'stock': int.tryParse(_stockController.text) ?? 0,
         'description': _descController.text.trim(),
-        'images': [imageUrl],
+        'media': mediaList,
+        'thumbnail_url': globalThumbnailUrl,
+        'image_count': _imageFiles.length,
+        'video_count': _videoFile != null ? 1 : 0,
         'sizes': _sizesController.text
             .split(',')
             .map((s) => s.trim())
@@ -129,16 +223,10 @@ class _AddProductPageState extends State<AddProductPage> {
             .toList(),
       };
 
-      debugPrint('[PRODUCT] Payload ready — sending to API');
-
-      // ── Step 3: Save via SellerProvider (MCP layer) ──────────────
-      // Provider also calls ProductsCache.add() → HomeScreen updates instantly
-      if (!mounted) return;
       final provider = context.read<SellerProvider>();
       final success = await provider.addProduct(data, userId);
 
       if (success && mounted) {
-        debugPrint('[PRODUCT] Product saved successfully — returning to dashboard');
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -151,7 +239,7 @@ class _AddProductPageState extends State<AddProductPage> {
         throw Exception(provider.error ?? 'Failed to add product');
       }
     } catch (e) {
-      debugPrint('[PRODUCT] addProduct caught error: $e');
+      debugPrint('[PRODUCT] Error during submission: $e');
       if (mounted) _showError('Error: $e');
     } finally {
       if (mounted) setState(() => _isUploading = false);
@@ -179,13 +267,13 @@ class _AddProductPageState extends State<AddProductPage> {
         foregroundColor: Colors.white,
       ),
       body: _isUploading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Publishing product…'),
+                  const CircularProgressIndicator(color: SwipifyTheme.primaryColor),
+                  const SizedBox(height: 16),
+                  Text(_uploadStatus, style: const TextStyle(fontWeight: FontWeight.w500)),
                 ],
               ),
             )
@@ -194,35 +282,40 @@ class _AddProductPageState extends State<AddProductPage> {
               child: ListView(
                 padding: const EdgeInsets.all(24.0),
                 children: [
-                  // ── Image Picker ─────────────────────────────────────────
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      height: 150,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[400]!),
-                      ),
-                      child: _imageFile == null
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_a_photo,
-                                    size: 40, color: Colors.grey[600]),
-                                const SizedBox(height: 8),
-                                Text('Tap to add product image',
-                                    style: TextStyle(color: Colors.grey[600])),
-                              ],
-                            )
-                          : ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: kIsWeb
-                                  ? Image.network(_imageFile!.path,
-                                      fit: BoxFit.cover)
-                                  : Image.file(File(_imageFile!.path),
-                                      fit: BoxFit.cover),
-                            ),
+                  // ── Media Picker ─────────────────────────────────────────
+                  const Text('Product Media', 
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  
+                  // Mixed Gallery Preview
+                  SizedBox(
+                    height: 120,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        // Add Image Button
+                        _buildAddMediaButton(
+                          icon: Icons.add_a_photo,
+                          label: 'Add Images',
+                          onTap: _pickImages,
+                        ),
+                        const SizedBox(width: 12),
+                        
+                        // Add Video Button
+                        if (_videoFile == null)
+                          _buildAddMediaButton(
+                            icon: Icons.video_call,
+                            label: 'Add Video',
+                            onTap: _pickVideo,
+                          ),
+                        
+                        // Video Preview
+                        if (_videoFile != null)
+                          _buildVideoPreview(),
+                          
+                        // Image Previews
+                        ..._imageFiles.map((file) => _buildImagePreview(file)),
+                      ],
                     ),
                   ),
 
@@ -349,6 +442,101 @@ class _AddProductPageState extends State<AddProductPage> {
                 ],
               ),
             ),
+    );
+  }
+  Widget _buildAddMediaButton({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 100,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!, width: 2),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: SwipifyTheme.primaryColor),
+            const SizedBox(height: 4),
+            Text(label, 
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImagePreview(XFile file) {
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: 12),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: kIsWeb
+                ? Image.network(file.path, width: 100, height: 120, fit: BoxFit.cover)
+                : Image.file(File(file.path), width: 100, height: 120, fit: BoxFit.cover),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: () => setState(() => _imageFiles.remove(file)),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoPreview() {
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: 12),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 100/120,
+              child: _videoController?.value.isInitialized ?? false
+                  ? VideoPlayer(_videoController!)
+                  : Container(color: Colors.black12),
+            ),
+          ),
+          const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: _removeVideo,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 4,
+            left: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+              child: const Text('VIDEO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

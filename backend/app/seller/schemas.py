@@ -48,7 +48,11 @@ class ProductCreateRequest(BaseModel):
     price: float
     stock: int
     category: str
-    images: List[str]
+    images: List[str] # Keep for compatibility during transition
+    media: Optional[List[Dict[str, Any]]] = None # [{type: 'image'|'video', url: '...'}]
+    thumbnail_url: Optional[str] = None
+    video_count: Optional[int] = 0
+    image_count: Optional[int] = 0
     sku: Optional[str] = None
     is_published: Optional[bool] = True
 
@@ -59,6 +63,10 @@ class ProductUpdateRequest(BaseModel):
     stock: Optional[int] = None
     category: Optional[str] = None
     images: Optional[List[str]] = None
+    media: Optional[List[Dict[str, Any]]] = None
+    thumbnail_url: Optional[str] = None
+    video_count: Optional[int] = None
+    image_count: Optional[int] = None
     sku: Optional[str] = None
     is_published: Optional[bool] = None
 

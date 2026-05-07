@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -94,9 +93,11 @@ class _ChatScreenState extends State<ChatScreen> {
         mediaUrl: url,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload: $e')),
+        );
+      }
     } finally {
       setState(() => _isUploading = false);
     }
@@ -198,7 +199,7 @@ class _ChatScreenState extends State<ChatScreen> {
         border: Border.all(color: SwipifyTheme.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -345,7 +346,7 @@ class _ChatScreenState extends State<ChatScreen> {
         color: SwipifyTheme.backgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -356,7 +357,7 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Container(
               decoration: BoxDecoration(
-                color: SwipifyTheme.borderColor.withOpacity(0.3),
+                color: SwipifyTheme.borderColor.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(

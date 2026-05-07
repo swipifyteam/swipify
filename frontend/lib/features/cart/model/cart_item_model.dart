@@ -2,7 +2,7 @@
 // Cart Item Model for the Swipify ecommerce platform.
 // Represents a product + its quantity in a user's persistent cart.
 
-import 'package:swipify/features/products/model/product_model.dart';
+import 'package:swipify/models/product_model.dart';
 
 class CartItemModel {
   final String productId;

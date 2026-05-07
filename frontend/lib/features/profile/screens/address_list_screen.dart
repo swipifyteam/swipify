@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/models/address_model.dart';
-import 'package:swipify/services/address_service.dart';
+import 'package:swipify/features/profile/service/address_provider.dart';
+import 'package:swipify/core/utils/phone_utils.dart';
+import 'package:flutter/services.dart';
 
 class AddressListScreen extends StatefulWidget {
   const AddressListScreen({super.key});
@@ -13,49 +15,25 @@ class AddressListScreen extends StatefulWidget {
 }
 
 class _AddressListScreenState extends State<AddressListScreen> {
-  List<AddressModel> _addresses = [];
-  bool _isLoading = true;
-  String? _error;
-
   @override
   void initState() {
     super.initState();
-    _fetchAddresses();
-  }
-
-  Future<void> _fetchAddresses() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
-      if (auth.user?.uid == null) {
-        throw Exception("User not logged in");
+      if (auth.user?.uid != null) {
+        Provider.of<AddressProvider>(context, listen: false).fetchAddresses(auth.user!.uid);
       }
-      final fetchedAddresses = await AddressService.getAddresses(auth.user!.uid);
-      setState(() {
-        _addresses = fetchedAddresses;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    });
   }
 
   Future<void> _deleteAddress(String addressId) async {
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
+      final addressProvider = Provider.of<AddressProvider>(context, listen: false);
       if (auth.user?.uid == null) {
         throw Exception("User not logged in");
       }
-      await AddressService.deleteAddress(addressId, auth.user!.uid);
-      _fetchAddresses(); // Refresh the list
+      await addressProvider.deleteAddress(addressId, auth.user!.uid);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Address deleted successfully')),
@@ -70,20 +48,8 @@ class _AddressListScreenState extends State<AddressListScreen> {
 
   Future<void> _setAsDefault(AddressModel address) async {
     try {
-      final updatedAddress = AddressModel(
-        id: address.id,
-        userId: address.userId,
-        fullName: address.fullName,
-        phone: address.phone,
-        region: address.region,
-        city: address.city,
-        barangay: address.barangay,
-        street: address.street,
-        postalCode: address.postalCode,
-        isDefault: true,
-      );
-      await AddressService.updateAddress(updatedAddress);
-      _fetchAddresses(); // Refresh the list
+      final addressProvider = Provider.of<AddressProvider>(context, listen: false);
+      await addressProvider.setAsDefault(address);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Default address updated')),
@@ -108,33 +74,43 @@ class _AddressListScreenState extends State<AddressListScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AddressFormScreen()),
-            ).then((value) => _fetchAddresses()),
+            ),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text("Error: $_error"))
-              : _addresses.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _addresses.length,
-                      itemBuilder: (context, index) {
-                        final address = _addresses[index];
-                        return AddressCard(
-                          address: address,
-                          onEdit: (editedAddress) => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AddressFormScreen(address: editedAddress)),
-                          ).then((value) => _fetchAddresses()),
-                          onDelete: _deleteAddress,
-                          onSetDefault: _setAsDefault,
-                        );
-                      },
-                    ),
+      body: Consumer<AddressProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading && provider.addresses.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (provider.error != null && provider.addresses.isEmpty) {
+            return Center(child: Text("Error: ${provider.error}"));
+          }
+          
+          if (provider.addresses.isEmpty) {
+            return _buildEmptyState();
+          }
+          
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: provider.addresses.length,
+            itemBuilder: (context, index) {
+              final address = provider.addresses[index];
+              return AddressCard(
+                address: address,
+                onEdit: (editedAddress) => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddressFormScreen(address: editedAddress)),
+                ),
+                onDelete: _deleteAddress,
+                onSetDefault: _setAsDefault,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -159,7 +135,7 @@ class _AddressListScreenState extends State<AddressListScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AddressFormScreen()),
-            ).then((value) => _fetchAddresses()),
+            ),
             icon: const Icon(Icons.add_location_alt),
             label: const Text("Add New Address"),
           ),
@@ -168,6 +144,7 @@ class _AddressListScreenState extends State<AddressListScreen> {
     );
   }
 }
+
 
 // Address Card Widget
 class AddressCard extends StatelessWidget {
@@ -305,12 +282,13 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     }
 
     try {
+      final addressProvider = Provider.of<AddressProvider>(context, listen: false);
       final address = AddressModel(
         id: widget.address?.id ?? '',
         userId: auth.user!.uid,
-        fullName: _fullNameController.text,
-        phone: _phoneController.text,
-        region: _regionController.text,
+        fullName: _fullNameController.text.trim(),
+        phone: PhoneUtils.normalizePH(_phoneController.text),
+        region: _regionController.text.trim(),
         city: _cityController.text,
         barangay: _barangayController.text,
         street: _streetController.text,
@@ -319,13 +297,13 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
       );
 
       if (widget.address == null) {
-        await AddressService.createAddress(address);
+        await addressProvider.addAddress(address);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Address added successfully')),
         );
       } else {
-        await AddressService.updateAddress(address);
+        await addressProvider.updateAddress(address);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Address updated successfully')),
@@ -345,9 +323,9 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     if (value == null || value.isEmpty) {
       return 'Phone number is required';
     }
-    // Basic phone number validation (e.g., starts with +, or is all digits)
-    if (!RegExp(r'^(\+|0)?[0-9]{7,15}$').hasMatch(value)) {
-      return 'Enter a valid phone number';
+    final normalized = PhoneUtils.normalizePH(value);
+    if (!PhoneUtils.isValidPH(normalized)) {
+      return 'Invalid phone number. Use 09XXXXXXXXX format.';
     }
     return null;
   }
@@ -372,8 +350,9 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(labelText: "Phone Number"),
+                decoration: const InputDecoration(labelText: "Phone Number", hintText: "0912 345 6789"),
                 keyboardType: TextInputType.phone,
+                inputFormatters: [PHPhoneFormatter()],
                 validator: _validatePhone,
               ),
               const SizedBox(height: 16),

@@ -124,7 +124,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     children: [
                       CircleAvatar(
                         radius: 26,
-                        backgroundColor: SwipifyTheme.accentColor.withOpacity(0.1),
+                        backgroundColor: SwipifyTheme.accentColor.withValues(alpha: 0.1),
                         child: const Icon(Icons.person, color: SwipifyTheme.accentColor, size: 28),
                       ),
                       const SizedBox(width: 16),

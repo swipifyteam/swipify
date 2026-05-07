@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:swipify/core/models/app_user.dart';
+import 'package:swipify/core/utils/phone_utils.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -23,6 +24,7 @@ class AuthProvider extends ChangeNotifier {
     'password_min_length': 8,
   };
   String? _pendingPhone;
+  String? _pendingUid;
 
   AppUser? get user => _user;
   bool get isLoading => _isLoading;
@@ -79,6 +81,7 @@ class AuthProvider extends ChangeNotifier {
       
       // Set initial user state immediately to avoid null-checks in UI
       _user = AppUser.fromFirebaseUser(firebaseUser);
+      debugPrint('[USER] _user set in _onAuthStateChanged: ${_user?.uid}');
       notifyListeners();
 
       try {
@@ -113,14 +116,35 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>?> fetchUserByPhone(String phone) async {
+    // Normalize to E.164 before querying
+    final normalized = PhoneUtils.normalizePH(phone);
+    if (normalized.isEmpty) {
+      debugPrint('[AUTH] fetchUserByPhone: could not normalize "$phone"');
+      return null;
+    }
+    debugPrint('[AUTH] fetchUserByPhone: querying Firestore with $normalized');
+
     try {
-      final snap = await FirebaseFirestore.instance
+      // 1. Primary query on normalized 'phone_number' field
+      var snap = await FirebaseFirestore.instance
           .collection('users')
-          .where('phone', isEqualTo: phone)
+          .where('phone_number', isEqualTo: normalized)
           .limit(1)
           .get();
+      
+      // 2. Fallback query on legacy 'phone' field if not found
+      if (snap.docs.isEmpty) {
+        debugPrint('[AUTH] fetchUserByPhone: no result for "phone_number", trying "phone" field');
+        snap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('phone', isEqualTo: normalized)
+            .limit(1)
+            .get();
+      }
+
       if (snap.docs.isNotEmpty) {
         final data = snap.docs.first.data();
+        debugPrint('[AUTH] fetchUserByPhone: user found with UID ${snap.docs.first.id}');
         // Add a masked email for UI display if needed
         if (data['email'] != null) {
           final email = data['email'] as String;
@@ -133,6 +157,7 @@ class AuthProvider extends ChangeNotifier {
         }
         return data;
       }
+      debugPrint('[AUTH] fetchUserByPhone: no user found for $normalized');
       return null;
     } catch (e) {
       debugPrint('[AUTH] fetchUserByPhone error: $e');
@@ -358,14 +383,21 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Phone Authentication ────────────────────────────────────────────────────
 
-  Future<void> loginWithPhone(String phoneNumber) async {
-    debugPrint('[AUTH] Starting CUSTOM SMS login for: $phoneNumber');
+  Future<void> loginWithPhone(String phoneNumber, {String? uid}) async {
+    // Normalize before any backend interaction
+    final normalized = PhoneUtils.normalizePH(phoneNumber);
+    if (!PhoneUtils.isValidPH(normalized)) {
+      _error = 'Invalid phone number format. Please use 09XXXXXXXXX format.';
+      notifyListeners();
+      return;
+    }
+    debugPrint('[AUTH] Starting CUSTOM SMS login for: $normalized (raw: $phoneNumber)');
     _setLoading(true);
     _clearError();
 
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
-      final effectiveUid = currentUser?.uid ?? _user?.uid;
+      final effectiveUid = uid ?? currentUser?.uid ?? _user?.uid;
       
       debugPrint('[AUTH] loginWithPhone UID Check: currentUser=${currentUser?.uid}, _user=${_user?.uid}');
 
@@ -375,9 +407,10 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
       
-      await ApiService.sendSmsOtp(phoneNumber.trim(), effectiveUid);
-      _pendingPhone = phoneNumber.trim();
-      debugPrint('[AUTH] Custom SMS Code sent via Backend');
+      await ApiService.sendSmsOtp(normalized, effectiveUid);
+      _pendingPhone = normalized;
+      _pendingUid = effectiveUid;
+      debugPrint('[AUTH] Custom SMS Code sent via Backend for UID: $_pendingUid');
       notifyListeners();
     } catch (e) {
       debugPrint('[AUTH] Custom Phone login error: $e');
@@ -388,29 +421,66 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<AppUser?> verifyOTP(String smsCode) async {
+  Future<AppUser?> verifyOTP(String smsCode, {String? phoneNumber, String? uid}) async {
     final currentUser = FirebaseAuth.instance.currentUser;
-    final effectiveUid = currentUser?.uid ?? _user?.uid;
+    final effectiveUid = uid ?? currentUser?.uid ?? _user?.uid ?? _pendingUid;
+    final effectivePhone = phoneNumber ?? _pendingPhone;
 
-    if (effectiveUid == null || _pendingPhone == null) {
+    debugPrint('[AUTH] verifyOTP called. effectiveUid=$effectiveUid, effectivePhone=$effectivePhone');
+
+    if (effectiveUid == null || effectivePhone == null) {
       _error = 'Session missing or phone number unknown. Please try again.';
       notifyListeners();
       return null;
     }
 
-    debugPrint('[AUTH] Verifying CUSTOM OTP for $_pendingPhone (UID: $effectiveUid)');
     _setLoading(true);
     _clearError();
 
     try {
-      await ApiService.verifySmsOtp(_pendingPhone!, smsCode.trim(), effectiveUid);
-      debugPrint('[AUTH] CUSTOM OTP verification success');
-      
-      // Refresh user data to get the updated phone number and verified status
-      await refreshUserData();
+      // Step 1: Call backend to verify OTP
+      debugPrint('[AUTH] Step 1: Calling backend verifySmsOtp...');
+      final response = await ApiService.verifySmsOtp(effectivePhone, smsCode.trim(), effectiveUid);
+      debugPrint('[AUTH] Step 1 complete. Response keys: ${response.keys.toList()}');
+
+      // Step 2: Extract custom token
+      final customToken = response['custom_token'];
+      debugPrint('[AUTH] Step 2: customToken is ${customToken != null ? "PRESENT" : "NULL"}');
+
+      if (customToken == null) {
+        _error = 'Server verified OTP but did not return a session token. Please try again.';
+        notifyListeners();
+        return null;
+      }
+
+      // Step 3: Sign in with the custom token
+      debugPrint('[AUTH] Step 3: Signing in with custom token...');
+      final userCred = await FirebaseAuth.instance.signInWithCustomToken(customToken);
+      final fbUser = userCred.user;
+      debugPrint('[AUTH] Step 3 complete. Firebase user: ${fbUser?.uid}');
+
+      if (fbUser == null) {
+        _error = 'Sign-in succeeded but no user session was created.';
+        notifyListeners();
+        return null;
+      }
+
+      // Step 4: Build AppUser and update internal state
+      debugPrint('[AUTH] Step 4: Building AppUser and syncing state...');
+      _user = AppUser.fromFirebaseUser(fbUser);
+      notifyListeners();
+
+      // Also kick off background Firestore sync (non-blocking)
+      _onAuthStateChanged(fbUser);
+
+      // Step 5: Cleanup
+      _pendingPhone = null;
+      _pendingUid = null;
+
+      debugPrint('[AUTH] Step 5: SUCCESS. Returning user ${_user?.uid}');
       return _user;
     } catch (e) {
-      debugPrint('[AUTH] CUSTOM OTP verification error: $e');
+      debugPrint('[AUTH] verifyOTP EXCEPTION: $e');
       _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return null;
@@ -460,7 +530,14 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required Map<String, String> address,
   }) async {
-    debugPrint('[AUTH] Starting unified signup for: $email');
+    // Normalize phone before signup
+    final normalizedPhone = PhoneUtils.normalizePH(phone);
+    if (!PhoneUtils.isValidPH(normalizedPhone)) {
+      _error = 'Invalid phone number. Use 09XXXXXXXXX format.';
+      notifyListeners();
+      return null;
+    }
+    debugPrint('[AUTH] Starting unified signup for: $email (phone: $normalizedPhone)');
     _setLoading(true);
     _clearError();
 
@@ -471,7 +548,7 @@ class AuthProvider extends ChangeNotifier {
         'name': name.trim(),
         'email': email.trim(),
         'password': password.trim(),
-        'phone': phone.trim(),
+        'phone': normalizedPhone,
         'address': address,
       });
 

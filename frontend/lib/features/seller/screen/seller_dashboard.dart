@@ -41,9 +41,7 @@ class _SellerDashboardState extends State<SellerDashboard> with SingleTickerProv
     if (auth.isLoggedIn && auth.user != null) {
        final sellerId = auth.user!.uid;
        final prov = Provider.of<SellerProvider>(context, listen: false);
-       prov.fetchStats(sellerId);
-       prov.fetchOrders(sellerId);
-       prov.fetchProducts(sellerId);
+       prov.fetchDashboardData(sellerId);
     }
   }
 

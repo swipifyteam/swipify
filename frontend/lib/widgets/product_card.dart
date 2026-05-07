@@ -44,6 +44,18 @@ class ProductCard extends StatelessWidget {
                         child: const Icon(Icons.image_rounded, color: SwipifyTheme.borderColor, size: 40),
                       ),
                     ),
+                    // Video indicator
+                    if (product.videoCount > 0)
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+                        ),
+                      ),
                     // Category badge
                     Positioned(
                       top: 10,
@@ -85,15 +97,16 @@ class ProductCard extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     // Product name — clamps to 2 lines
                     Text(
                       product.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: SwipifyTheme.productTitle.copyWith(fontSize: 12, height: 1.3),
+                      style: SwipifyTheme.productTitle.copyWith(fontSize: 12, height: 1.2),
                     ),
+                    const Spacer(),
                     // Price + rating
                     Row(
                       children: [
@@ -117,6 +130,7 @@ class ProductCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 2),
                     // Shop name
                     Row(
                       children: [

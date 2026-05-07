@@ -63,6 +63,9 @@ const _navDefs = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Responsive breakpoint: below this width we use a Drawer instead of sidebar
+const double _kDrawerBreakpoint = 768;
+
 class SellerDashboardPage extends StatefulWidget {
   const SellerDashboardPage({super.key});
   @override
@@ -70,6 +73,7 @@ class SellerDashboardPage extends StatefulWidget {
 }
 
 class _SellerDashboardPageState extends State<SellerDashboardPage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   _NavItem _active = _NavItem.overview;
   bool _sidebarExpanded = true;
 
@@ -87,22 +91,77 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
     context.read<SellerProductsProvider>().fetchSellerProducts(uid);
   }
 
+  bool _isNarrow(BuildContext context) =>
+      MediaQuery.of(context).size.width < _kDrawerBreakpoint;
+
+  void _onNavSelect(_NavItem item) {
+    setState(() => _active = item);
+    // Close the drawer on mobile after selection
+    if (_isNarrow(context) && _scaffoldKey.currentState?.isDrawerOpen == true) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final narrow = _isNarrow(context);
+
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: _kSurface,
-      body: Row(
-        children: [
-          _Sidebar(
-            active: _active,
-            expanded: _sidebarExpanded,
-            onSelect: (item) => setState(() => _active = item),
-            onToggle: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
-          ),
-          Expanded(child: _body()),
-        ],
-      ),
+      // Drawer only available on mobile
+      drawer: narrow
+          ? Drawer(
+              backgroundColor: _kPrimary,
+              child: _DrawerContent(
+                active: _active,
+                onSelect: _onNavSelect,
+              ),
+            )
+          : null,
+      // AppBar with hamburger only on mobile
+      appBar: narrow
+          ? AppBar(
+              backgroundColor: _kPrimary,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+              title: Text(
+                _navLabel(_active),
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            )
+          : null,
+      body: narrow
+          // Mobile: just the body, sidebar is in Drawer
+          ? _body()
+          // Desktop: persistent sidebar + body
+          : Row(
+              children: [
+                _Sidebar(
+                  active: _active,
+                  expanded: _sidebarExpanded,
+                  onSelect: _onNavSelect,
+                  onToggle: () =>
+                      setState(() => _sidebarExpanded = !_sidebarExpanded),
+                ),
+                Expanded(child: _body()),
+              ],
+            ),
     );
+  }
+
+  String _navLabel(_NavItem item) {
+    for (final def in _navDefs) {
+      if (def.$1 == item) return def.$3;
+    }
+    return '';
   }
 
   Widget _body() {
@@ -115,6 +174,107 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
       case _NavItem.finance:    return const _FinanceModule();
       case _NavItem.settings:   return const _SettingsModule();
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DRAWER CONTENT (Mobile)
+// ═══════════════════════════════════════════════════════════════════════════════
+class _DrawerContent extends StatelessWidget {
+  final _NavItem active;
+  final ValueChanged<_NavItem> onSelect;
+
+  const _DrawerContent({required this.active, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final name = auth.user?.displayName ?? 'My Shop';
+
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Shop header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_kAccent, Color(0xFFFF6B35)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Seller Center',
+                        style: GoogleFonts.inter(
+                          color: Colors.white54,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFF4A5A63)),
+          const SizedBox(height: 8),
+
+          // Nav items
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: _navDefs.map((def) {
+                  final (item, icon, label) = def;
+                  return _NavTile(
+                    icon: icon,
+                    label: label,
+                    isActive: active == item,
+                    expanded: true,
+                    onTap: () => onSelect(item),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+
+          const Divider(height: 1, color: Color(0xFF4A5A63)),
+          _NavTile(
+            icon: Icons.exit_to_app_rounded,
+            label: 'EXIT AS SELLER',
+            isActive: false,
+            expanded: true,
+            onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false),
+            danger: true,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
   }
 }
 
@@ -1527,6 +1687,8 @@ class _SettingsModule extends StatefulWidget {
 
 class _SettingsModuleState extends State<_SettingsModule> {
   bool _vacationMode = false;
+  bool _orderAlerts = true;
+  bool _payoutAlerts = true;
   final _storeNameCtrl = TextEditingController();
   final _storeDescCtrl = TextEditingController();
   final _logoUrlCtrl = TextEditingController();
@@ -1543,6 +1705,8 @@ class _SettingsModuleState extends State<_SettingsModule> {
     _logoUrlCtrl.text   = sp.logoUrl ?? '';
     _bannerUrlCtrl.text = sp.bannerUrl ?? '';
     _vacationMode = sp.vacationMode;
+    _orderAlerts = sp.orderAlerts;
+    _payoutAlerts = sp.payoutAlerts;
   }
 
   @override
@@ -1647,39 +1811,65 @@ class _SettingsModuleState extends State<_SettingsModule> {
                   _SettingRow(
                     label: 'Shop Logo',
                     sub: 'Displays on your shop profile',
-                    child: SizedBox(
-                      width: 280,
-                      child: OutlinedButton.icon(
-                        onPressed: _isUploadingLogo ? null : _pickLogo,
-                        icon: _isUploadingLogo
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.add_photo_alternate_rounded, size: 18),
-                        label: Text(_isUploadingLogo ? 'Uploading...' : (_logoUrlCtrl.text.isEmpty ? 'Upload Logo' : 'Change Logo')),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _kTextPrimary,
-                          side: BorderSide(color: _kBorder),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_logoUrlCtrl.text.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(_logoUrlCtrl.text, width: 80, height: 80, fit: BoxFit.cover),
+                            ),
+                          ),
+                        SizedBox(
+                          width: 280,
+                          child: OutlinedButton.icon(
+                            onPressed: _isUploadingLogo ? null : _pickLogo,
+                            icon: _isUploadingLogo
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.add_photo_alternate_rounded, size: 18),
+                            label: Text(_isUploadingLogo ? 'Uploading...' : (_logoUrlCtrl.text.isEmpty ? 'Upload Logo' : 'Change Logo')),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _kTextPrimary,
+                              side: BorderSide(color: _kBorder),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                   _SettingRow(
                     label: 'Shop Banner',
                     sub: 'Background for your store header',
-                    child: SizedBox(
-                      width: 280,
-                      child: OutlinedButton.icon(
-                        onPressed: _isUploadingBanner ? null : _pickBanner,
-                        icon: _isUploadingBanner
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.add_photo_alternate_rounded, size: 18),
-                        label: Text(_isUploadingBanner ? 'Uploading...' : (_bannerUrlCtrl.text.isEmpty ? 'Upload Banner' : 'Change Banner')),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _kTextPrimary,
-                          side: BorderSide(color: _kBorder),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_bannerUrlCtrl.text.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(_bannerUrlCtrl.text, width: 200, height: 80, fit: BoxFit.cover),
+                            ),
+                          ),
+                        SizedBox(
+                          width: 280,
+                          child: OutlinedButton.icon(
+                            onPressed: _isUploadingBanner ? null : _pickBanner,
+                            icon: _isUploadingBanner
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.add_photo_alternate_rounded, size: 18),
+                            label: Text(_isUploadingBanner ? 'Uploading...' : (_bannerUrlCtrl.text.isEmpty ? 'Upload Banner' : 'Change Banner')),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _kTextPrimary,
+                              side: BorderSide(color: _kBorder),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                   _SettingRow(
@@ -1726,6 +1916,30 @@ class _SettingsModuleState extends State<_SettingsModule> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              _SettingsSection(
+                title: 'Notification Settings',
+                children: [
+                  _SettingRow(
+                    label: 'Order Alerts',
+                    sub: 'Get notified when you receive a new order',
+                    child: Switch(
+                      value: _orderAlerts,
+                      onChanged: (v) => setState(() => _orderAlerts = v),
+                      activeThumbColor: _kAccent,
+                    ),
+                  ),
+                  _SettingRow(
+                    label: 'Payout Alerts',
+                    sub: 'Get notified when a payout is processed',
+                    child: Switch(
+                      value: _payoutAlerts,
+                      onChanged: (v) => setState(() => _payoutAlerts = v),
+                      activeThumbColor: _kAccent,
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -1742,6 +1956,8 @@ class _SettingsModuleState extends State<_SettingsModule> {
                       'logo_url': _logoUrlCtrl.text.trim(),
                       'banner_url': _bannerUrlCtrl.text.trim(),
                       'vacation_mode': _vacationMode,
+                      'order_alerts': _orderAlerts,
+                      'payout_alerts': _payoutAlerts,
                       'shipping_settings': {
                         'standard_fee': sp.standardShippingFee,
                         'express_fee': sp.expressShippingFee,

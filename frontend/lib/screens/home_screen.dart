@@ -304,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.68,
+              childAspectRatio: 0.65, // Increased height slightly to prevent subpixel overflows
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
             ),
@@ -689,7 +689,7 @@ class _SearchResultsView extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, childAspectRatio: 0.72, mainAxisSpacing: 16, crossAxisSpacing: 16,
+        crossAxisCount: 2, childAspectRatio: 0.69, mainAxisSpacing: 16, crossAxisSpacing: 16,
       ),
       itemCount: results.length,
       itemBuilder: (ctx, i) => ProductCard(product: results[i]),

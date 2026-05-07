@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:swipify/models/user_model.dart';
-import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
 
 class UserProvider extends ChangeNotifier {

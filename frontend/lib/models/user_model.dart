@@ -7,6 +7,7 @@ class UserModel {
   final String? phoneNumber;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? defaultAddressId;
 
   UserModel({
     required this.id,
@@ -17,6 +18,7 @@ class UserModel {
     this.phoneNumber,
     this.createdAt,
     this.updatedAt,
+    this.defaultAddressId,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class UserModel {
       phoneNumber: json['phone_number'],
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at']) : null,
+      defaultAddressId: json['default_address_id'],
     );
   }
 
@@ -42,6 +45,7 @@ class UserModel {
       'phone_number': phoneNumber,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'default_address_id': defaultAddressId,
     };
   }
 }

@@ -1,16 +1,20 @@
-// lib/features/seller/service/seller_provider.dart
-// Seller Dashboard state management — orders, stats, and seller shop settings.
-
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swipify/features/orders/model/order_model.dart';
-import 'package:swipify/features/products/model/product_model.dart';
+import 'package:swipify/models/product_model.dart';
 import 'package:swipify/features/seller/domain/entities/seller_entity.dart';
 import 'package:swipify/services/api_service.dart';
 
 class SellerProvider with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  StreamSubscription? _ordersSubscription;
+
   double _totalEarnings = 0.0;
   int _totalOrders = 0;
   int _deliveredCount = 0;
@@ -73,10 +77,13 @@ class SellerProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      // Start real-time stream for orders (which also calculates stats)
+      startOrderStream(sellerId);
+      
+      // Load other non-streamed data
       await Future.wait([
-        fetchStats(sellerId),
-        fetchOrders(sellerId),
         loadShopSettings(sellerId),
+        fetchProducts(sellerId),
       ]);
     } finally {
       _isLoading = false;
@@ -84,56 +91,74 @@ class SellerProvider with ChangeNotifier {
     }
   }
 
-  // 1. FETCH REAL-TIME STATS
-  Future<void> fetchStats(String sellerId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiService.baseUrl}/orders/stats/$sellerId'),
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        _totalEarnings  = (data['total_earnings']  ?? 0.0).toDouble();
-        _totalOrders    = (data['total_orders']    ?? 0).toInt();
-        _deliveredCount = (data['delivered_count'] ?? 0).toInt();
-        debugPrint('[SELLER STATS] ✅ $sellerId → earnings=$_totalEarnings orders=$_totalOrders');
-      } else {
-        debugPrint('[SELLER STATS] ❌ ${response.statusCode}: ${response.body}');
-      }
-    } catch (e) {
-      debugPrint('[SELLER STATS] ❌ Exception: $e');
-    }
+  // 1. START REAL-TIME ORDER STREAM
+  void startOrderStream(String sellerId) {
+    _ordersSubscription?.cancel();
+    
+    debugPrint('[SELLER ORDERS] 📡 Starting stream for $sellerId');
+    
+    _ordersSubscription = _firestore
+        .collection('orders')
+        .where('seller_id', isEqualTo: sellerId)
+        .snapshots()
+        .listen((snapshot) {
+      _orders = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return OrderModel.fromJson(data);
+      }).toList();
+
+      // Sort by date descending
+      _orders.sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
+
+      // 🚨 RE-CALCULATE STATS LOCALLY 🚨
+      _calculateStats();
+      
+      debugPrint('[SELLER ORDERS] ✅ ${_orders.length} orders synced via stream');
+      notifyListeners();
+    }, onError: (e) {
+      debugPrint('[SELLER ORDERS] ❌ Stream error: $e');
+      _error = e.toString();
+      notifyListeners();
+    });
   }
 
-  // 2. FETCH SELLER ORDERS — handles both List and {"orders":[...]} shapes
-  Future<void> fetchOrders(String sellerId) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiService.baseUrl}/orders/seller/$sellerId'),
-      );
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        List raw;
-        if (decoded is List) {
-          raw = decoded;
-        } else if (decoded is Map && decoded.containsKey('orders')) {
-          raw = decoded['orders'] as List;
-        } else {
-          raw = [];
-        }
-        _orders = raw.map((o) => OrderModel.fromJson(o as Map<String, dynamic>)).toList();
-        debugPrint('[SELLER ORDERS] ✅ ${_orders.length} orders for $sellerId');
-      } else {
-        debugPrint('[SELLER ORDERS] ❌ ${response.statusCode}: ${response.body}');
-        _error = 'Failed to load orders: ${response.statusCode}';
+  void _calculateStats() {
+    double earnings = 0.0;
+    int delivered = 0;
+
+    for (var order in _orders) {
+      final s = order.status.toLowerCase();
+      // Match backend logic: total_price from 'delivered' or 'completed'
+      if (s == 'delivered' || s == 'completed') {
+        earnings += order.totalPrice;
+        delivered++;
       }
-    } catch (e) {
-      debugPrint('[SELLER ORDERS] ❌ Exception: $e');
-      _error = e.toString();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+    }
+
+    _totalEarnings = earnings;
+    _totalOrders = _orders.length;
+    _deliveredCount = delivered;
+    
+    debugPrint('[SELLER STATS] 📊 Recalculated: earnings=$_totalEarnings orders=$_totalOrders delivered=$delivered');
+  }
+
+  @override
+  void dispose() {
+    _ordersSubscription?.cancel();
+    super.dispose();
+  }
+
+  // 2. FETCH REAL-TIME STATS (Legacy - now handled by _calculateStats)
+  Future<void> fetchStats(String sellerId) async {
+    // Keeping for compatibility but stats are now reactive
+    _calculateStats();
+  }
+
+  // 3. FETCH SELLER ORDERS (Legacy - now handled by startOrderStream)
+  Future<void> fetchOrders(String sellerId) async {
+    if (_ordersSubscription == null) {
+      startOrderStream(sellerId);
     }
   }
 
@@ -153,38 +178,8 @@ class SellerProvider with ChangeNotifier {
       );
       if (response.statusCode == 200) {
         debugPrint('[ORDER STATUS UPDATED] ✅ $orderId is now $newStatus');
-        // Optimistically update local state immediately
-        final idx = _orders.indexWhere((o) => o.id == orderId);
-        if (idx != -1) {
-          final old = _orders[idx];
-          _orders[idx] = OrderModel(
-            id: old.id,
-            userId: old.userId,
-            sellerId: old.sellerId,
-            items: old.items,
-            totalPrice: old.totalPrice,
-            status: newStatus,
-            paymentMethod: old.paymentMethod,
-            paymentStatus: old.paymentStatus,
-            isCodConfirmed: old.isCodConfirmed,
-            createdAt: old.createdAt,
-            updatedAt: DateTime.now().toIso8601String(),
-            shippingAddress: old.shippingAddress,
-            shippingOption: old.shippingOption,
-            shippingFee: old.shippingFee,
-            trackingNumber: old.trackingNumber,
-            logisticProvider: old.logisticProvider,
-            discountAmount: old.discountAmount,
-            voucherId: old.voucherId,
-            shipmentId: old.shipmentId,
-            statusHistory: old.statusHistory,
-          );
-          notifyListeners();
-        }
-        // Then refresh from server
-        await fetchOrders(sellerId);
-        await fetchStats(sellerId);
-        debugPrint('[UI REFRESHED] Orders and stats reloaded');
+        // Stream handles local state update automatically via Firestore snapshot
+        debugPrint('[UI REFRESHED] Stats reloaded via stream calculation');
         if (context != null && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Order marked as ${newStatus[0].toUpperCase()}${newStatus.substring(1)}'),
@@ -243,8 +238,13 @@ class SellerProvider with ChangeNotifier {
   // 5. LOAD SHOP SETTINGS from Firestore via backend
   Future<void> loadShopSettings(String sellerId) async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final token = await user.getIdToken();
+
       final response = await http.get(
         Uri.parse('${ApiService.baseUrl}/seller/shop/$sellerId'),
+        headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -271,10 +271,17 @@ class SellerProvider with ChangeNotifier {
   // 6. SAVE SHOP SETTINGS
   Future<bool> saveShopSettings(String sellerId, Map<String, dynamic> data) async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      final token = await user.getIdToken();
+
       debugPrint('[SHOP SETTINGS] Saving for $sellerId: $data');
       final response = await http.patch(
         Uri.parse('${ApiService.baseUrl}/seller/shop/$sellerId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
         body: json.encode(data),
       );
       if (response.statusCode == 200) {

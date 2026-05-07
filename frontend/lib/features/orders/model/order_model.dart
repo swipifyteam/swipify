@@ -17,7 +17,7 @@ class StatusHistoryEntry {
 
   factory StatusHistoryEntry.fromJson(Map<String, dynamic> json) {
     return StatusHistoryEntry(
-      timestamp: json['timestamp'] ?? '',
+      timestamp: OrderModel.convertDate(json['timestamp']),
       oldStatus: json['old_status'],
       newStatus: json['new_status'] ?? '',
       updatedBy: json['updated_by'],
@@ -81,7 +81,7 @@ class OrderItemModel {
       productId: json['product_id'] ?? json['productId'] ?? '',
       name: json['name'] ?? 'Product',
       quantity: (json['quantity'] ?? 1).toInt(),
-      price: (json['price'] ?? 0.0).toDouble(),
+      price: OrderModel.parseDouble(json['price']),
       imageUrl: json['image_url'] ?? json['image'],
     );
   }
@@ -142,6 +142,25 @@ class OrderModel {
     this.statusHistory = const [],
   });
 
+  static double parseDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
+  }
+
+  static String convertDate(dynamic val) {
+    if (val == null) return '';
+    if (val is String) return val;
+    if (val is DateTime) return val.toIso8601String();
+    try {
+      // Handle Firestore Timestamp if available
+      return (val as dynamic).toDate().toIso8601String();
+    } catch (_) {
+      return val.toString();
+    }
+  }
+
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     var rawItems = json['items'] as List? ?? [];
     List<OrderItemModel> itemsList = rawItems
@@ -149,26 +168,26 @@ class OrderModel {
         .toList();
 
     final shippingDetails = json['shipping_details'] as Map<String, dynamic>? ?? json['shipping_option'] as Map<String, dynamic>?;
-    final shippingFeeFromDetails = shippingDetails != null ? (shippingDetails['fee'] ?? 0.0).toDouble() : (json['shipping_fee'] ?? 0.0).toDouble();
+    final shippingFeeFromDetails = shippingDetails != null ? parseDouble(shippingDetails['fee']) : parseDouble(json['shipping_fee']);
 
     return OrderModel(
       id: json['id'] ?? '',
       userId: json['user_id'] ?? json['userId'] ?? '',
       sellerId: json['seller_id'] ?? json['sellerId'] ?? '',
       items: itemsList,
-      totalPrice: (json['total_price'] ?? json['totalPrice'] ?? 0.0).toDouble(),
-      status: json['status'] ?? 'pending',
-      paymentStatus: json['payment_status'] ?? 'unpaid',
-      paymentMethod: json['payment_method'] ?? 'online',
+      totalPrice: parseDouble(json['total_price'] ?? json['totalPrice']),
+      status: (json['status'] as String? ?? 'pending').toLowerCase(),
+      paymentStatus: (json['payment_status'] as String? ?? 'unpaid').toLowerCase(),
+      paymentMethod: (json['payment_method'] as String? ?? 'online').toLowerCase(),
       isCodConfirmed: json['is_cod_confirmed'] ?? false,
       shippingAddress: json['shipping_address'] as Map<String, dynamic>?,
       shippingOption: shippingDetails,
       shippingFee: shippingFeeFromDetails,
-       createdAt: json['created_at'] ?? json['createdAt'],
-      updatedAt: json['updated_at'] ?? json['updatedAt'],
+      createdAt: convertDate(json['created_at'] ?? json['createdAt']),
+      updatedAt: convertDate(json['updated_at'] ?? json['updatedAt']),
       trackingNumber: json['tracking_number'],
       logisticProvider: json['logistic_provider'],
-      discountAmount: (json['discount_amount'] ?? 0.0).toDouble(),
+      discountAmount: parseDouble(json['discount_amount']),
       voucherId: json['voucher_id'],
       shipmentId: json['shipment_id'],
       statusHistory: (json['status_history'] as List? ?? [])

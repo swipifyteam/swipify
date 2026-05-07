@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:swipify/core/models/app_user.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/navigation/main_nav_screen.dart';
 import 'package:swipify/core/theme.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
-  const OTPVerificationScreen({super.key});
+  final String? phoneNumber;
+  final String? uid;
+
+  const OTPVerificationScreen({
+    super.key,
+    this.phoneNumber,
+    this.uid,
+  });
 
   @override
   State<OTPVerificationScreen> createState() => _OTPVerificationScreenState();
@@ -42,27 +51,58 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     }
 
     try {
-      final user = await auth.verifyOTP(code);
-      if (mounted) {
-        if (user != null) {
-          // Check role to route properly, or fallback to main navigation
-          if (user.isAdmin) {
-             Navigator.pushNamedAndRemoveUntil(context, '/admin', (route) => false);
-          } else {
-             Navigator.pushAndRemoveUntil(
-               context, 
-               MaterialPageRoute(builder: (_) => const MainNavScreen()),
-               (route) => false,
-             );
-          }
-        } else if (auth.error != null) {
-          _showError(auth.error!);
-        }
+      debugPrint('[OTP] Calling verifyOTP...');
+      final user = await auth.verifyOTP(
+        code, 
+        phoneNumber: widget.phoneNumber, 
+        uid: widget.uid,
+      );
+      
+      debugPrint('[OTP] verifyOTP returned. user=$user, error=${auth.error}');
+
+      if (!mounted) return;
+
+      if (user != null) {
+        _navigateHome(user);
+        return;
+      }
+
+      // FALLBACK: If verifyOTP returned null but Firebase Auth has a user,
+      // it means sign-in worked but there was a state sync issue.
+      final fbUser = FirebaseAuth.instance.currentUser;
+      debugPrint('[OTP] Fallback check: FirebaseAuth.currentUser=${fbUser?.uid}');
+      
+      if (fbUser != null) {
+        debugPrint('[OTP] Fallback: Firebase session exists! Navigating to home...');
+        final fallbackUser = AppUser.fromFirebaseUser(fbUser);
+        _navigateHome(fallbackUser);
+        return;
+      }
+
+      // If we truly have no user and no error, show a message
+      if (auth.error != null) {
+        _showError(auth.error!);
+      } else {
+        _showError("Verification failed. Please request a new code and try again.");
       }
     } catch (e) {
+      debugPrint('[OTP] _handleVerify exception: $e');
       if (mounted) {
-        _showError(auth.error ?? "Verification failed");
+        _showError(auth.error ?? "Verification failed: $e");
       }
+    }
+  }
+
+  void _navigateHome(AppUser user) {
+    debugPrint('[OTP] Navigating home for user: ${user.uid} (isAdmin: ${user.isAdmin})');
+    if (user.isAdmin) {
+      Navigator.pushNamedAndRemoveUntil(context, '/admin', (route) => false);
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context, 
+        MaterialPageRoute(builder: (_) => const MainNavScreen()),
+        (route) => false,
+      );
     }
   }
 

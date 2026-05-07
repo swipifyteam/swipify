@@ -10,6 +10,11 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   AppUser? _user;
   bool _isLoading = false;
   String? _error;
+  String? _verificationId;
+  Map<String, dynamic>? _signupConfig = {
+    'step_labels': ['Contact', 'Security', 'Profile', 'Address'],
+    'password_min_length': 8,
+  };
 
   @override
   AppUser? get user => _user;
@@ -23,6 +28,15 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   @override
   bool get isLoggedIn => _user != null;
 
+  @override
+  String? get verificationId => _verificationId;
+
+  @override
+  Map<String, dynamic>? get signupConfig => _signupConfig;
+
+  @override
+  bool get isSocialUser => false;
+
   void setMockUser(AppUser? user) {
     _user = user;
     notifyListeners();
@@ -30,6 +44,12 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
 
   void setMockLoading(bool loading) {
     _isLoading = loading;
+    notifyListeners();
+  }
+
+  @override
+  void setLoading(bool val) {
+    _isLoading = val;
     notifyListeners();
   }
 
@@ -44,13 +64,12 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   }
 
   @override
-  Future<AppUser?> signUpWithEmail(
-      String email, String password, String displayName, {
-      String? username,
-      String? phoneNumber,
-      String? gender,
-      String? dateOfBirth,
-      bool signOutAfter = true,
+  Future<AppUser?> signUpWithEmail({
+    required String email,
+    required String password,
+    required String name,
+    required String phone,
+    required Map<String, String> address,
   }) async {
     return _user;
   }
@@ -94,10 +113,10 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   Future<void> fetchSignupConfig() async {}
 
   @override
-  Future<void> loginWithPhone(String phoneNumber) async {}
+  Future<void> loginWithPhone(String phoneNumber, {String? uid}) async {}
 
   @override
-  Future<AppUser?> verifyOTP(String smsCode) async => _user;
+  Future<AppUser?> verifyOTP(String smsCode, {String? phoneNumber, String? uid}) async => _user;
 
   @override
   Future<Map<String, dynamic>?> fetchUserByPhone(String phone) async => null;

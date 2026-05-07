@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/orders/model/order_model.dart';
-import 'package:swipify/features/orders/order_service.dart';
 import 'package:swipify/services/shipping_service.dart';
 
 class SellerOrderDetailsPage extends StatefulWidget {

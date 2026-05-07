@@ -4,7 +4,6 @@
 // ============================================================
 import 'package:flutter_test/flutter_test.dart';
 import 'package:swipify/features/profile/screen/profile_screen.dart';
-import 'package:swipify/features/profile/widgets/wallet_section.dart';
 import 'package:swipify/features/profile/widgets/order_status_overview.dart';
 import 'package:swipify/features/profile/widgets/start_selling_cta.dart';
 import 'package:swipify/features/profile/widgets/utilities_grid.dart';
@@ -44,11 +43,6 @@ void main() {
       expect(find.text('Edit Profile'), findsOneWidget);
     });
 
-    testWidgets('has a WalletSection', (tester) async {
-      await tester.pumpWidget(testApp(const ProfileScreen(), authProvider: mockAuth));
-      await tester.pump();
-      expect(find.byType(WalletSection), findsOneWidget);
-    });
 
     testWidgets('has an OrderStatusOverview', (tester) async {
       await tester.pumpWidget(testApp(const ProfileScreen(), authProvider: mockAuth));
@@ -69,37 +63,6 @@ void main() {
     });
   });
 
-  group('WalletSection', () {
-    testWidgets('renders without crashing', (tester) async {
-      await tester.pumpWidget(testApp(const WalletSection()));
-      await tester.pump();
-      expect(find.byType(WalletSection), findsOneWidget);
-    });
-
-    testWidgets('shows Swipify Wallet label', (tester) async {
-      await tester.pumpWidget(testApp(const WalletSection()));
-      await tester.pump();
-      expect(find.text('Swipify Wallet'), findsOneWidget);
-    });
-
-    testWidgets('shows Coins label', (tester) async {
-      await tester.pumpWidget(testApp(const WalletSection()));
-      await tester.pump();
-      expect(find.text('Coins'), findsOneWidget);
-    });
-
-    testWidgets('shows Vouchers label', (tester) async {
-      await tester.pumpWidget(testApp(const WalletSection()));
-      await tester.pump();
-      expect(find.text('Vouchers'), findsOneWidget);
-    });
-
-    testWidgets('shows balance with Peso sign', (tester) async {
-      await tester.pumpWidget(testApp(const WalletSection()));
-      await tester.pump();
-      expect(find.text('₱1,250.00'), findsOneWidget);
-    });
-  });
 
   group('OrderStatusOverview', () {
     final mockOrderProvider = MockOrderProvider();

@@ -29,6 +29,7 @@ import 'package:swipify/features/seller/service/seller_vouchers_provider.dart';
 import 'package:swipify/features/profile/service/user_provider.dart';
 import 'package:swipify/features/orders/service/order_provider.dart';
 import 'package:swipify/features/checkout/service/checkout_provider.dart';
+import 'package:swipify/features/profile/service/address_provider.dart';
 
 // Legacy/Auxiliary
 import 'package:swipify/features/navigation/service/notification_provider.dart';
@@ -87,6 +88,7 @@ class Swipify extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => CheckoutProvider()),
+        ChangeNotifierProvider(create: (_) => AddressProvider()),
       ],
       child: MaterialApp(
         title: 'Swipify',

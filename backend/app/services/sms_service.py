@@ -14,6 +14,16 @@ class SmsService:
         Sends an OTP via SMS API PH.
         Expected format: +639#########
         """
+        # ── SANDBOX MODE ──────────────────────────────────────────────────────
+        # Use this number for testing without consuming API credits or requiring a key
+        if phone_number == "+639000000000":
+            logger.info(f" [SANDBOX] OTP for {phone_number} is: {otp}")
+            return True
+
+        if not settings.SMS_KEY:
+            logger.error("SMS_KEY is missing in environment variables. SMS delivery will fail.")
+            return False
+
         headers = {
             "x-api-key": settings.SMS_KEY,
             "Content-Type": "application/json"
@@ -31,7 +41,7 @@ class SmsService:
                     logger.info(f"OTP sent successfully to {phone_number}")
                     return True
                 else:
-                    logger.error(f"Failed to send OTP to {phone_number}: {response.text}")
+                    logger.error(f"Failed to send OTP to {phone_number}: Status {response.status_code} - {response.text}")
                     return False
         except Exception as e:
             logger.error(f"SMS API error: {str(e)}")

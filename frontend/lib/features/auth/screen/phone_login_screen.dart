@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
+import 'package:swipify/core/utils/phone_utils.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/auth/screen/otp_verification_screen.dart';
 import 'package:swipify/core/theme.dart';
@@ -41,35 +43,44 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       return;
     }
 
-    // Basic format check
-    if (!phone.startsWith('+')) {
-      _showError("Please include your country code (e.g., +63)");
+    // Normalize the phone number — accepts 09x, +63x, 9x, 63x
+    final normalized = PhoneUtils.normalizePH(phone);
+    if (!PhoneUtils.isValidPH(normalized)) {
+      _showError("Invalid phone number. Use 09XXXXXXXXX format.");
       return;
     }
 
     // Check if user exists first
     auth.setLoading(true);
     try {
-      final user = await auth.fetchUserByPhone(phone);
+      final user = await auth.fetchUserByPhone(normalized);
       if (user == null) {
         _showError("No account found with this phone number. Please sign up first.");
         auth.setLoading(false);
         return;
       }
-    } catch (e) {
-      // If check fails, we might still want to try loginWithPhone or show error
-      debugPrint('[AUTH] Phone check failed: $e');
-    }
 
-    await auth.loginWithPhone(phone);
-    
-    if (mounted && auth.error == null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const OTPVerificationScreen()),
-      );
-    } else if (mounted && auth.error != null) {
-      _showError(auth.error!);
+      final uid = user['uid'] ?? user['id'];
+      await auth.loginWithPhone(normalized, uid: uid);
+      
+      if (mounted && auth.error == null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OTPVerificationScreen(
+              phoneNumber: normalized,
+              uid: uid,
+            ),
+          ),
+        );
+      } else if (mounted && auth.error != null) {
+        _showError(auth.error!);
+      }
+    } catch (e) {
+      debugPrint('[AUTH] Phone login failed: $e');
+      _showError("An unexpected error occurred. Please try again.");
+    } finally {
+      if (mounted) auth.setLoading(false);
     }
   }
 
@@ -115,10 +126,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [PHPhoneFormatter()],
                 style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18, letterSpacing: 1),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.phone_android_outlined, size: 24, color: SwipifyTheme.primaryColor),
-                  hintText: "+63 912 345 6789",
+                  hintText: "0912 345 6789",
                   hintStyle: GoogleFonts.inter(color: Colors.grey.withValues(alpha: 0.5), fontWeight: FontWeight.w500),
                   filled: true,
                   fillColor: SwipifyTheme.backgroundColor.withValues(alpha: 0.5),

@@ -178,8 +178,14 @@ def _mask_email(email: str) -> str:
 async def upload_profile_picture(user_id: str = Form(...), file: UploadFile = File(...)):
     """Uploads a profile picture to Cloudinary and updates Firestore."""
     try:
-        # 1. Validation
-        if not file.content_type.startswith("image/"):
+        # 1. Validation — Flutter web often sends 'application/octet-stream'
+        allowed_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic')
+        filename = (file.filename or "").lower()
+        content_ok = file.content_type and file.content_type.startswith("image/")
+        extension_ok = any(filename.endswith(ext) for ext in allowed_extensions)
+        
+        if not content_ok and not extension_ok:
+            logger.warning(f"[UPLOAD] Rejected file: name={file.filename}, content_type={file.content_type}")
             raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
         
         # Check size (5MB limit)

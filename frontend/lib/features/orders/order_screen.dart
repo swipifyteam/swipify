@@ -302,7 +302,10 @@ class _OrderScreenState extends State<OrderScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => TrackingScreen(shipmentId: order.shipmentId!),
+                        builder: (context) => TrackingScreen(
+                          orderId: order.id,
+                          trackingNumber: order.trackingNumber!,
+                        ),
                       ),
                     );
                   },

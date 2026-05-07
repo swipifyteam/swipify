@@ -1,5 +1,30 @@
-// models/product_model.dart
-// Data model for a Product fetched from the Swipify backend API.
+class ProductMedia {
+  final String type; // 'image' or 'video'
+  final String url;
+  final String? thumbnailUrl; // Only for video
+
+  ProductMedia({
+    required this.type,
+    required this.url,
+    this.thumbnailUrl,
+  });
+
+  factory ProductMedia.fromJson(Map<String, dynamic> json) {
+    return ProductMedia(
+      type: json['type'] ?? 'image',
+      url: json['url'] ?? '',
+      thumbnailUrl: json['thumbnail_url'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type,
+      'url': url,
+      if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+    };
+  }
+}
 
 class ProductModel {
   final String id;
@@ -9,7 +34,11 @@ class ProductModel {
   final double price;
   final int stock;
   final String description;
-  final List<String> images;
+  final List<String> images; // Legacy
+  final List<ProductMedia> media;
+  final String? thumbnailUrl;
+  final int videoCount;
+  final int imageCount;
   final List<String> sizes;
   final List<String> colors;
   final double rating;
@@ -18,6 +47,9 @@ class ProductModel {
   final int followerCount;
   final double averageRating;
   final int totalReviews;
+  final String shopId;
+  final String shopName;
+  final bool isPublished;
 
   const ProductModel({
     required this.id,
@@ -27,7 +59,11 @@ class ProductModel {
     required this.price,
     required this.stock,
     required this.description,
-    required this.images,
+    this.images = const [],
+    this.media = const [],
+    this.thumbnailUrl,
+    this.videoCount = 0,
+    this.imageCount = 0,
     this.sizes = const [],
     this.colors = const [],
     required this.rating,
@@ -41,21 +77,32 @@ class ProductModel {
     this.isPublished = true,
   });
 
-  final String shopId;
-  final String shopName;
-  final bool isPublished;
-
   /// Parse a ProductModel from a JSON map (API response).
   factory ProductModel.fromJson(Map<String, dynamic> json) {
+    var mediaList = (json['media'] as List?)
+            ?.map((m) => ProductMedia.fromJson(m))
+            .toList() ?? [];
+    
+    // Fallback if media is empty but images exist
+    if (mediaList.isEmpty && json['images'] != null) {
+      mediaList = (json['images'] as List)
+          .map((img) => ProductMedia(type: 'image', url: img))
+          .toList();
+    }
+
     return ProductModel(
       id: json['id'] ?? '',
       sellerId: json['sellerId'] ?? json['seller_id'] ?? '',
       name: json['name'] ?? '',
-      category: json['category'] ?? json['brandId'] ?? '', // Fallback to brandId for older data
+      category: json['category'] ?? json['brandId'] ?? '',
       price: (json['price'] ?? 0).toDouble(),
       stock: (json['stock'] ?? 0).toInt(),
       description: json['description'] ?? '',
       images: List<String>.from(json['images'] ?? []),
+      media: mediaList,
+      thumbnailUrl: json['thumbnail_url'],
+      videoCount: (json['video_count'] ?? 0).toInt(),
+      imageCount: (json['image_count'] ?? 0).toInt(),
       sizes: List<String>.from(json['sizes'] ?? []),
       colors: List<String>.from(json['colors'] ?? []),
       rating: (json['rating'] ?? 0.0).toDouble(),
@@ -70,12 +117,19 @@ class ProductModel {
     );
   }
 
-  /// Returns the first image URL, or a placeholder if none available.
-  String get primaryImage =>
-      images.isNotEmpty ? images[0] : 'https://picsum.photos/300';
+  /// Returns the first image URL, or video thumbnail, or placeholder.
+  String get firstImage {
+    if (thumbnailUrl != null && thumbnailUrl!.isNotEmpty) return thumbnailUrl!;
+    if (images.isNotEmpty) return images[0];
+    if (media.isNotEmpty) {
+      final first = media[0];
+      if (first.type == 'video' && first.thumbnailUrl != null) return first.thumbnailUrl!;
+      return first.url;
+    }
+    return 'https://picsum.photos/300';
+  }
 
-  /// Alias used by CartItemModel and other widgets.
-  String get firstImage => primaryImage;
+  String get primaryImage => firstImage;
 
   Map<String, dynamic> toJson() {
     return {
@@ -87,6 +141,10 @@ class ProductModel {
       'stock': stock,
       'description': description,
       'images': images,
+      'media': media.map((m) => m.toJson()).toList(),
+      'thumbnail_url': thumbnailUrl,
+      'video_count': videoCount,
+      'image_count': imageCount,
       'sizes': sizes,
       'colors': colors,
       'rating': rating,

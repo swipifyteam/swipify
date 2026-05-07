@@ -18,6 +18,9 @@ import 'package:swipify/screens/seller_shop_screen.dart';
 import 'package:swipify/screens/checkout_screen.dart';
 import 'package:swipify/services/chat_service.dart';
 import 'package:swipify/screens/chat_screen.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
+
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
   const ProductDetailScreen({super.key, required this.product});
@@ -33,13 +36,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late Future<List<ReviewModel>> _futureReviews;
   bool _descExpanded = false;
   final PageController _imgCtrl = PageController();
-  int _currentImg = 0;
+  int _currentMedia = 0;
+
+  // Video Controllers
+  final Map<int, ChewieController?> _chewieControllers = {};
+  final Map<int, VideoPlayerController?> _videoPlayerControllers = {};
 
   @override
   void initState() {
     super.initState();
     _futureReviews = ReviewService.getProductReviews(widget.product.id);
     if (widget.product.colors.isNotEmpty) _selectedColor = widget.product.colors.first;
+  }
+
+  @override
+  void dispose() {
+    _imgCtrl.dispose();
+    for (var ctrl in _videoPlayerControllers.values) {
+      ctrl?.dispose();
+    }
+    for (var ctrl in _chewieControllers.values) {
+      ctrl?.dispose();
+    }
+    super.dispose();
   }
 
   // ─── UI Actions ─────────────────────────────────────────────────────────────
@@ -230,7 +249,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // ─── Component Builders ─────────────────────────────────────────────────────
 
   Widget _buildHeroSection(ProductModel p) {
-    final images = p.images.isNotEmpty ? p.images : [p.primaryImage];
+    final media = p.media.isNotEmpty ? p.media : [ProductMedia(type: 'image', url: p.primaryImage)];
+    
     return Container(
       height: 420,
       decoration: const BoxDecoration(
@@ -244,29 +264,102 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           children: [
             PageView.builder(
               controller: _imgCtrl,
-              itemCount: images.length,
-              onPageChanged: (v) => setState(() => _currentImg = v),
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () => _showZoomedImage(images[i]),
-                child: CachedNetworkImage(imageUrl: images[i], fit: BoxFit.cover),
-              ),
+              itemCount: media.length,
+              onPageChanged: (v) {
+                setState(() => _currentMedia = v);
+                // Pause other videos if needed
+              },
+              itemBuilder: (_, i) {
+                final item = media[i];
+                if (item.type == 'video') {
+                  return _buildVideoPlayer(item, i);
+                }
+                return GestureDetector(
+                  onTap: () => _showZoomedImage(item.url),
+                  child: CachedNetworkImage(imageUrl: item.url, fit: BoxFit.cover),
+                );
+              },
             ),
+            
+            // Indicators
             Positioned(bottom: 24, left: 0, right: 0, child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(images.length, (i) => AnimatedContainer(
+              children: List.generate(media.length, (i) => AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: _currentImg == i ? 24 : 8, height: 8,
+                width: _currentMedia == i ? 24 : 8, height: 8,
                 decoration: BoxDecoration(
-                  color: _currentImg == i ? SwipifyTheme.primaryColor : SwipifyTheme.primaryColor.withValues(alpha: 0.15),
+                  color: _currentMedia == i ? SwipifyTheme.primaryColor : SwipifyTheme.primaryColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
               )),
             )),
+
+            // Video Tag
+            if (media[_currentMedia].type == 'video')
+              Positioned(
+                top: 60,
+                right: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.videocam, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text('VIDEO', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildVideoPlayer(ProductMedia media, int index) {
+    return FutureBuilder(
+      future: _initController(index, media.url),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && _chewieControllers[index] != null) {
+          return Chewie(controller: _chewieControllers[index]!);
+        }
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            if (media.thumbnailUrl != null)
+              CachedNetworkImage(imageUrl: media.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+            const CircularProgressIndicator(),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _initController(int index, String url) async {
+    if (_videoPlayerControllers.containsKey(index)) return;
+
+    final videoCtrl = VideoPlayerController.networkUrl(Uri.parse(url));
+    _videoPlayerControllers[index] = videoCtrl;
+    await videoCtrl.initialize();
+    
+    final chewieCtrl = ChewieController(
+      videoPlayerController: videoCtrl,
+      autoPlay: false,
+      looping: false,
+      aspectRatio: videoCtrl.value.aspectRatio,
+      placeholder: widget.product.media[index].thumbnailUrl != null 
+          ? CachedNetworkImage(imageUrl: widget.product.media[index].thumbnailUrl!, fit: BoxFit.cover)
+          : null,
+      materialProgressColors: ChewieProgressColors(
+        playedColor: SwipifyTheme.primaryColor,
+        handleColor: SwipifyTheme.primaryColor,
+        backgroundColor: Colors.grey,
+        bufferedColor: Colors.white.withValues(alpha: 0.5),
+      ),
+    );
+    _chewieControllers[index] = chewieCtrl;
   }
 
   void _showZoomedImage(String url) {
@@ -695,8 +788,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 class _FloatingCircleBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  final Color? iconColor;
-  const _FloatingCircleBtn({required this.icon, required this.onTap, this.iconColor});
+  const _FloatingCircleBtn({required this.icon, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -704,7 +796,7 @@ class _FloatingCircleBtn extends StatelessWidget {
       width: 44, height: 44,
       decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, 
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)]),
-      child: Icon(icon, color: iconColor ?? SwipifyTheme.primaryColor, size: 24),
+      child: Icon(icon, color: SwipifyTheme.primaryColor, size: 24),
     ),
   );
 }

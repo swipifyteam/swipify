@@ -160,4 +160,7 @@ class MockSellerProvider extends ChangeNotifier implements SellerProvider {
 
   @override
   void setFreeShippingThreshold(double v) {}
+
+  @override
+  void startOrderStream(String sellerId) {}
 }

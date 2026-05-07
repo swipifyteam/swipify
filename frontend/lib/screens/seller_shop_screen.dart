@@ -44,7 +44,7 @@ class _SellerShopScreenState extends State<SellerShopScreen> {
     setState(() => _isLoading = true);
     try {
       final productsFuture = ApiService.getSellerProducts(widget.sellerId);
-      final shopFuture = ApiService.getShopSettings(widget.sellerId);
+      final shopFuture = ApiService.getPublicShopInfo(widget.sellerId);
       
       final results = await Future.wait([productsFuture, shopFuture]);
       
@@ -129,19 +129,28 @@ class _SellerShopScreenState extends State<SellerShopScreen> {
           fit: StackFit.expand,
           children: [
             Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [SwipifyTheme.primaryColor, Color(0xFF2C313B)],
                 ),
+                image: _shopDetails?['banner_url'] != null 
+                  ? DecorationImage(
+                      image: CachedNetworkImageProvider(_shopDetails!['banner_url']),
+                      fit: BoxFit.cover,
+                      colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.3), BlendMode.darken),
+                    )
+                  : null,
               ),
-              child: Opacity(
-                opacity: 0.15,
-                child: Center(
-                  child: Icon(Icons.storefront_rounded, size: 200, color: Colors.white.withValues(alpha: 0.3)),
-                ),
-              ),
+              child: _shopDetails?['banner_url'] == null 
+                ? Opacity(
+                    opacity: 0.15,
+                    child: Center(
+                      child: Icon(Icons.storefront_rounded, size: 200, color: Colors.white.withValues(alpha: 0.3)),
+                    ),
+                  )
+                : null,
             ),
             Container(
               decoration: BoxDecoration(
@@ -187,7 +196,7 @@ class _SellerShopScreenState extends State<SellerShopScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.storeName,
+                          _shopDetails?['shop_name'] ?? widget.storeName,
                           style: GoogleFonts.inter(
                             color: Colors.white,
                             fontSize: 22,
@@ -195,13 +204,26 @@ class _SellerShopScreenState extends State<SellerShopScreen> {
                             letterSpacing: -0.5,
                           ),
                         ),
+                        if (_shopDetails?['description'] != null && _shopDetails!['description'].isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            _shopDetails!['description'],
+                            style: GoogleFonts.inter(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                         const SizedBox(height: 6),
                         Row(
                           children: [
                             const Icon(Icons.star_rounded, color: SwipifyTheme.starColor, size: 16),
                             const SizedBox(width: 4),
                             Text(
-                              '4.9 (2.4k reviews)',
+                              '${_shopDetails?['rating'] ?? '5.0'} (${_shopDetails?['review_count'] ?? '0'} reviews)',
                               style: GoogleFonts.inter(
                                 color: Colors.white.withValues(alpha: 0.9),
                                 fontSize: 13,
@@ -216,6 +238,22 @@ class _SellerShopScreenState extends State<SellerShopScreen> {
                 ],
               ),
             ),
+            if (_shopDetails?['vacation_mode'] == true)
+              Positioned(
+                top: 80,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.orange.withValues(alpha: 0.9),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Center(
+                    child: Text(
+                      'SHOP ON VACATION 🌴',
+                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 30,
               right: 20,

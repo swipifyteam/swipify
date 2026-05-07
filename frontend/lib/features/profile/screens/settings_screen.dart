@@ -88,8 +88,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsTile(
                     icon: Icons.phone_android_rounded,
                     title: 'Phone Number',
-                    subtitle: phone != null && phone.isNotEmpty ? phone : 'Not linked',
-                    onTap: () => _showEditPhoneDialog(context, phone ?? '', authProvider, userProv),
+                    subtitle: phone.isNotEmpty ? phone : 'Not linked',
+                    onTap: () => _showEditPhoneDialog(context, phone, authProvider, userProv),
                   ),
                 ],
               ),
@@ -541,26 +541,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
         content: SingleChildScrollView(
           child: Text(content, style: GoogleFonts.inter(height: 1.6, fontSize: 14)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("CLOSE", style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: SwipifyTheme.primaryColor)),
-          ),
-        ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-    );
-  }
-
-  void _showSupportDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Help & Support", style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
-        content: Text(
-          "For assistance, please contact our support team at support@swipify.com. We typically respond within 24 hours.",
-          style: GoogleFonts.inter(height: 1.6, fontSize: 14),
         ),
         actions: [
           TextButton(

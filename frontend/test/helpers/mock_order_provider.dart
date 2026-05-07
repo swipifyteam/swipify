@@ -14,32 +14,37 @@ class MockOrderProvider extends ChangeNotifier implements OrderProvider {
   @override
   String? get error => _error;
 
-  int _toPayCount = 0;
-  int _toShipCount = 0;
-  int _toReceiveCount = 0;
-  int _completedCount = 0;
+  @override
+  int get toPayCount => _orders.where((o) => o.status == 'pending').length;
+  @override
+  int get toShipCount => _orders.where((o) => o.status == 'processing' || o.status == 'paid').length;
+  @override
+  int get toReceiveCount => _orders.where((o) => o.status == 'shipped' || o.status == 'in_transit' || o.status == 'delivered').length;
+  @override
+  int get completedCount => _orders.where((o) => o.status == 'completed').length;
+  @override
+  int get cancelledCount => _orders.where((o) => o.status == 'cancelled' || o.status == 'refunded').length;
 
   @override
-  int get toPayCount => _toPayCount;
-  @override
-  int get toShipCount => _toShipCount;
-  @override
-  int get toReceiveCount => _toReceiveCount;
-  @override
-  int get completedCount => _completedCount;
-
-  void setMockCounts({int toPay = 0, int toShip = 0, int toReceive = 0, int completed = 0}) {
-    _toPayCount = toPay;
-    _toShipCount = toShip;
-    _toReceiveCount = toReceive;
-    _completedCount = completed;
-    notifyListeners();
+  List<OrderModel> ordersByTab(String tab) {
+    switch (tab) {
+      case 'to_pay':
+        return _orders.where((o) => o.status == 'pending').toList();
+      case 'to_ship':
+        return _orders.where((o) => o.status == 'processing' || o.status == 'paid').toList();
+      case 'to_receive':
+        return _orders.where((o) => o.status == 'shipped' || o.status == 'in_transit' || o.status == 'delivered').toList();
+      case 'completed':
+        return _orders.where((o) => o.status == 'completed').toList();
+      case 'cancelled':
+        return _orders.where((o) => o.status == 'cancelled' || o.status == 'refunded').toList();
+      default:
+        return _orders;
+    }
   }
 
   @override
-  Future<void> fetchUserOrders(String uid) async {
-    // Default mock behavior: do nothing or use existing _orders
-  }
+  void fetchUserOrders(String uid) {}
 
   @override
   void setOrders(List<OrderModel> orders) {
@@ -52,19 +57,26 @@ class MockOrderProvider extends ChangeNotifier implements OrderProvider {
     notifyListeners();
   }
 
+  void setMockCounts({int toPay = 0, int toShip = 0, int toReceive = 0, int completed = 0, int cancelled = 0}) {
+    // We can simulate this by adding dummy orders with these statuses
+    _orders = [
+      ...List.generate(toPay, (_) => OrderModel(id: 'p', status: 'pending', totalPrice: 0, items: [], userId: 'u', sellerId: 's', paymentStatus: 'unpaid', paymentMethod: 'online')),
+      ...List.generate(toShip, (_) => OrderModel(id: 's', status: 'processing', totalPrice: 0, items: [], userId: 'u', sellerId: 's', paymentStatus: 'paid', paymentMethod: 'online')),
+      ...List.generate(toReceive, (_) => OrderModel(id: 'r', status: 'shipped', totalPrice: 0, items: [], userId: 'u', sellerId: 's', paymentStatus: 'paid', paymentMethod: 'online')),
+      ...List.generate(completed, (_) => OrderModel(id: 'c', status: 'completed', totalPrice: 0, items: [], userId: 'u', sellerId: 's', paymentStatus: 'paid', paymentMethod: 'online')),
+      ...List.generate(cancelled, (_) => OrderModel(id: 'x', status: 'cancelled', totalPrice: 0, items: [], userId: 'u', sellerId: 's', paymentStatus: 'refunded', paymentMethod: 'online')),
+    ];
+    notifyListeners();
+  }
+
   void setMockError(String? error) {
     _error = error;
     notifyListeners();
   }
 
   @override
-  Future<void> updateOrderStatus(String orderId, String newStatus) async {
-    // Mock: no-op
-  }
+  Future<void> updateOrderStatus(String orderId, String newStatus) async {}
 
   @override
-  Future<bool> confirmCod(String orderId) async {
-    // Mock implementation for confirmCod
-    return true;
-  }
+  Future<bool> confirmCod(String orderId) async => true;
 }

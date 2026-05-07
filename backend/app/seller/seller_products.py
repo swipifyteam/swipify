@@ -3,7 +3,7 @@ from typing import List, Optional
 from firebase_client import db
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 from app.utils.auth_utils import get_current_user_id
-from app.utils.cloudinary_handler import upload_image_to_cloudinary
+from app.utils.cloudinary_handler import upload_image_to_cloudinary, upload_video_to_cloudinary
 from app.seller.schemas import (
     ProductCreateRequest,
     ProductUpdateRequest,
@@ -67,6 +67,28 @@ async def create_product(request: ProductCreateRequest, current_user_id: str = D
 
         new_doc_ref = db.collection("products").document()
         
+        # Handle Media and Counts
+        media = request.media or []
+        if not media and request.images:
+            # Fallback for old clients or simple image uploads
+            media = [{"type": "image", "url": img} for img in request.images]
+        
+        if not media:
+            raise HTTPException(status_code=400, detail="At least 1 image or video is required")
+
+        image_count = sum(1 for m in media if m.get("type") == "image")
+        video_count = sum(1 for m in media if m.get("type") == "video")
+        
+        # Determine thumbnail
+        thumbnail_url = request.thumbnail_url
+        if not thumbnail_url and media:
+            first_item = media[0]
+            if first_item.get("type") == "video":
+                # Use provided thumbnail_url from video upload response
+                thumbnail_url = request.thumbnail_url or first_item.get("url") # Fallback to video url if thumb missing
+            else:
+                thumbnail_url = first_item.get("url")
+
         product_data = {
             "seller_id": current_user_id,
             "shop_id": shop_id,
@@ -75,8 +97,11 @@ async def create_product(request: ProductCreateRequest, current_user_id: str = D
             "price": request.price,
             "stock": request.stock,
             "category": request.category,
-            "images": request.images,
-            "thumbnail_url": request.images[0],
+            "media": media,
+            "images": [m["url"] for m in media if m["type"] == "image"], # Legacy support
+            "thumbnail_url": thumbnail_url,
+            "image_count": image_count,
+            "video_count": video_count,
             "sku": request.sku or f"SKU-{str(uuid.uuid4())[:8].upper()}",
             "is_published": request.is_published if request.is_published is not None else True,
             "created_at": SERVER_TIMESTAMP,
@@ -115,6 +140,30 @@ async def upload_product_image(file: UploadFile = File(...), current_user_id: st
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/upload-video")
+async def upload_product_video(file: UploadFile = File(...), current_user_id: str = Depends(get_current_user_id)):
+    """Upload product video to Cloudinary."""
+    # Validate format
+    allowed_formats = ["video/mp4", "video/quicktime", "video/webm", "application/octet-stream"]
+    if file.content_type not in allowed_formats:
+        # Some browsers/tools might send video as octet-stream, but we usually prefer explicit check
+        pass 
+
+    try:
+        contents = await file.read()
+        unique_filename = f"vid_{current_user_id}_{uuid.uuid4()}_{file.filename}"
+        
+        video_url, thumbnail_url = upload_video_to_cloudinary(contents, unique_filename, folder="swipify/products/videos")
+        
+        return {
+            "video_url": video_url,
+            "thumbnail_url": thumbnail_url
+        }
+    except Exception as e:
+        print(f"[VIDEO UPLOAD ERROR] {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # 6. BULK ACTIONS
 @router.post("/bulk")
@@ -251,9 +300,22 @@ async def update_product(product_id: str, request: ProductUpdateRequest, current
             raise HTTPException(status_code=400, detail="Stock cannot be negative")
 
         update_data = {k: v for k, v in request.model_dump().items() if v is not None}
-        if request.images and len(request.images) > 0:
-            update_data["thumbnail_url"] = request.images[0]
+        
+        # Recalculate counts if media updated
+        if "media" in update_data:
+            media = update_data["media"]
+            update_data["image_count"] = sum(1 for m in media if m.get("type") == "image")
+            update_data["video_count"] = sum(1 for m in media if m.get("type") == "video")
+            update_data["images"] = [m["url"] for m in media if m["type"] == "image"] # Legacy support
             
+            if not update_data.get("thumbnail_url") and media:
+                first_item = media[0]
+                if first_item.get("type") == "video":
+                    # Note: Expect thumbnail_url to be passed in request for videos
+                    pass 
+                else:
+                    update_data["thumbnail_url"] = first_item.get("url")
+
         update_data["updated_at"] = SERVER_TIMESTAMP
         doc_ref.update(update_data)
         

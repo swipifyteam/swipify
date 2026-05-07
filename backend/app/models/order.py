@@ -42,13 +42,14 @@ class OrderItem(BaseModel):
     image_url: Optional[str] = None # Added for UI snapshots
 
 class AddressSnapshot(BaseModel):
-    full_name: str
-    phone: str
-    province: str
-    city: str
-    barangay: str
-    street: str
-    postal_code: str
+    full_name: Optional[str] = "Customer"
+    phone: Optional[str] = ""
+    province: Optional[str] = None
+    region: Optional[str] = None # Support legacy data
+    city: Optional[str] = ""
+    barangay: Optional[str] = ""
+    street: Optional[str] = ""
+    postal_code: Optional[str] = ""
 
 class OrderCreateRequest(BaseModel):
     user_id: str
@@ -94,8 +95,8 @@ class OrderResponse(BaseModel):
     payment_method: Optional[str] = "online"
     payment_status: Optional[str] = "pending"
     is_cod_confirmed: Optional[bool] = False
-    created_at: str
-    updated_at: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     shipping_details: Optional[SelectedShippingOption] = None
     shipping_address: Optional[AddressSnapshot] = None
     logistic_provider: Optional[str] = None

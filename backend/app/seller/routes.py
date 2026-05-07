@@ -1,7 +1,4 @@
-# app/seller/routes.py
-# Seller API endpoints for Swipify.
-
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from app.seller.schemas import (
     SellerApplicationRequest, 
     ApproveRejectRequest, 
@@ -9,6 +6,7 @@ from app.seller.schemas import (
     UploadDocumentResponse
 )
 from app.seller import services
+from app.utils.auth_utils import get_current_user_id
 
 router = APIRouter()
 
@@ -102,13 +100,35 @@ async def admin_reject_seller(request: ApproveRejectRequest):
     return {"message": result}
 
 @router.get("/shop/{seller_id}")
-async def get_shop_settings(seller_id: str):
-    """Retrieve shop settings for a seller."""
+async def get_shop_settings(seller_id: str, current_user_id: str = Depends(get_current_user_id)):
+    """Retrieve shop settings for a seller (Private: Requires ownership)."""
+    if seller_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this shop")
     return services.get_shop_settings(seller_id)
 
+@router.get("/shop/{seller_id}/public")
+async def get_public_shop_info(seller_id: str):
+    """Retrieve public shop information for customers (No Auth required)."""
+    full_settings = services.get_shop_settings(seller_id)
+    # Filter out sensitive fields
+    public_info = {
+        "shop_name": full_settings.get("shop_name", "My Shop"),
+        "description": full_settings.get("description", ""),
+        "logo_url": full_settings.get("logo_url"),
+        "banner_url": full_settings.get("banner_url"),
+        "vacation_mode": full_settings.get("vacation_mode", False),
+        "follower_count": full_settings.get("follower_count", 0),
+        "rating": full_settings.get("rating", 5.0),
+        "review_count": full_settings.get("review_count", 0),
+    }
+    return public_info
+
+
 @router.patch("/shop/{seller_id}")
-async def update_shop_settings(seller_id: str, data: dict):
+async def update_shop_settings(seller_id: str, data: dict, current_user_id: str = Depends(get_current_user_id)):
     """Update shop settings for a seller."""
+    if seller_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this shop")
     success, message = services.update_shop_settings(seller_id, data)
     if not success:
         raise HTTPException(status_code=400, detail=message)

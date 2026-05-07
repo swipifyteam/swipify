@@ -5,23 +5,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:swipify/features/profile/service/user_provider.dart';
 import 'package:swipify/models/user_model.dart';
-import 'package:swipify/models/product_model.dart';
 
 class MockUserProvider extends ChangeNotifier implements UserProvider {
   UserModel? _profile;
-  List<ProductModel> _likedProducts = [];
-  List<ProductModel> _recentlyViewed = [];
   List<String> _claimedVoucherIds = [];
   bool _isLoading = false;
 
   @override
   UserModel? get profile => _profile;
-  @override
-  List<ProductModel> get likedProducts => _likedProducts;
-  @override
-  List<ProductModel> get recentlyViewed => _recentlyViewed;
+  
   @override
   List<String> get claimedVoucherIds => _claimedVoucherIds;
+  
   @override
   bool get isLoading => _isLoading;
 
@@ -47,6 +42,7 @@ class MockUserProvider extends ChangeNotifier implements UserProvider {
         email: _profile!.email,
         role: _profile!.role,
         profileImage: _profile!.profileImage,
+        phoneNumber: _profile!.phoneNumber,
         createdAt: _profile!.createdAt,
         updatedAt: DateTime.now(),
       );
@@ -58,12 +54,6 @@ class MockUserProvider extends ChangeNotifier implements UserProvider {
   Future<void> updateProfilePicture(String uid, List<int> bytes, String filename) async {}
 
   @override
-  bool isLiked(String productId) => _likedProducts.any((p) => p.id == productId);
-
-  @override
-  Future<void> toggleLike(String uid, ProductModel product) async {}
-
-  @override
   bool isVoucherClaimed(String voucherId) => _claimedVoucherIds.contains(voucherId);
 
   @override
@@ -72,15 +62,41 @@ class MockUserProvider extends ChangeNotifier implements UserProvider {
   @override
   void clear() {
     _profile = null;
-    _likedProducts = [];
-    _recentlyViewed = [];
     _claimedVoucherIds = [];
     notifyListeners();
   }
 
   @override
-  Future<void> updateEmail(String uid, String newEmail) async {}
+  Future<void> updateEmail(String newEmail) async {
+    if (_profile != null) {
+      _profile = UserModel(
+        id: _profile!.id,
+        name: _profile!.name,
+        email: newEmail,
+        role: _profile!.role,
+        profileImage: _profile!.profileImage,
+        phoneNumber: _profile!.phoneNumber,
+        createdAt: _profile!.createdAt,
+        updatedAt: DateTime.now(),
+      );
+      notifyListeners();
+    }
+  }
 
   @override
-  Future<void> updatePhoneNumber(String uid, String newPhone) async {}
+  Future<void> updatePhoneNumber(String newPhone) async {
+    if (_profile != null) {
+      _profile = UserModel(
+        id: _profile!.id,
+        name: _profile!.name,
+        email: _profile!.email,
+        role: _profile!.role,
+        profileImage: _profile!.profileImage,
+        phoneNumber: newPhone,
+        createdAt: _profile!.createdAt,
+        updatedAt: DateTime.now(),
+      );
+      notifyListeners();
+    }
+  }
 }

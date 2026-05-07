@@ -95,13 +95,15 @@ class ApiService {
     }
   }
 
-  static Future<void> verifySmsOtp(String phoneNumber, String otp, String uid) async {
+  static Future<Map<String, dynamic>> verifySmsOtp(String phoneNumber, String otp, String uid) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/sms/verify'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'phone_number': phoneNumber, 'otp': otp, 'uid': uid}),
     );
-    if (response.statusCode != 200) {
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
       final error = json.decode(response.body);
       throw Exception(error['detail'] ?? 'Failed to verify SMS OTP');
     }
@@ -666,12 +668,17 @@ class ApiService {
 
   /// Upload product image
   static Future<String> uploadProductImage(List<int> bytes, String filename, String sellerId) async {
+    // Get real Firebase ID token for auth
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+    final idToken = await user.getIdToken();
+
     var request = http.MultipartRequest(
       'POST',
       Uri.parse('$baseUrl/seller/products/upload-image'),
     );
     request.headers.addAll({
-        'Authorization': 'Bearer $sellerId',
+        'Authorization': 'Bearer $idToken',
     });
 
     var multipartFile = http.MultipartFile.fromBytes(
@@ -690,6 +697,41 @@ class ApiService {
       final respStr = await response.stream.bytesToString();
       final error = json.decode(respStr);
       throw Exception(error['detail'] ?? 'Failed to upload product image');
+    }
+  }
+
+  static Future<Map<String, String>> uploadProductVideo(List<int> bytes, String filename, String sellerId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+    final idToken = await user.getIdToken();
+
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/seller/products/upload-video'),
+    );
+    request.headers.addAll({
+        'Authorization': 'Bearer $idToken',
+    });
+
+    var multipartFile = http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+    );
+    request.files.add(multipartFile);
+
+    var response = await request.send();
+    if (response.statusCode == 200) {
+      final respStr = await response.stream.bytesToString();
+      final data = json.decode(respStr);
+      return {
+        'video_url': data['video_url'] as String,
+        'thumbnail_url': data['thumbnail_url'] as String,
+      };
+    } else {
+      final respStr = await response.stream.bytesToString();
+      final error = json.decode(respStr);
+      throw Exception(error['detail'] ?? 'Failed to upload product video');
     }
   }
 
@@ -920,4 +962,13 @@ class ApiService {
     }
     throw Exception('Failed to load shop settings: ${response.statusCode}');
   }
+
+  static Future<Map<String, dynamic>> getPublicShopInfo(String sellerId) async {
+    final response = await http.get(Uri.parse('$baseUrl/seller/shop/$sellerId/public'));
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+    throw Exception('Failed to load public shop info: ${response.statusCode}');
+  }
 }
+

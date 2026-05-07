@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/navigation/main_nav_screen.dart';
-import 'package:swipify/core/theme.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

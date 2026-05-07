@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
+import 'package:swipify/core/utils/phone_utils.dart';
+import 'package:flutter/services.dart';
 
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // For kIsWeb
@@ -164,7 +166,7 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
         'store_name': _storeNameController.text,
         'seller_type': _sellerType,
         'full_name': _fullNameController.text,
-        'phone_number': _phoneNumberController.text,
+        'phone_number': PhoneUtils.normalizePH(_phoneNumberController.text),
         'address': _addressController.text,
         'email': _emailController.text,
         'payout_method': _payoutMethod,
@@ -335,9 +337,15 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _phoneNumberController,
-                    decoration: const InputDecoration(labelText: 'Business Phone Number'),
+                    decoration: const InputDecoration(labelText: 'Business Phone Number', hintText: '0912 345 6789'),
                     keyboardType: TextInputType.phone,
-                    validator: (val) => val?.isEmpty ?? true ? 'Enter phone number' : null,
+                    inputFormatters: [PHPhoneFormatter()],
+                    validator: (val) {
+                      if (val == null || val.isEmpty) return 'Enter phone number';
+                      final normalized = PhoneUtils.normalizePH(val);
+                      if (!PhoneUtils.isValidPH(normalized)) return 'Invalid format. Use 09XXXXXXXXX';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(

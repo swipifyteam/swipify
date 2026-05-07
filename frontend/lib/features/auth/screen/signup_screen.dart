@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
+import 'package:swipify/core/utils/phone_utils.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
-import 'package:swipify/features/auth/screen/phone_login_screen.dart';
-import 'package:swipify/features/auth/screen/otp_verification_screen.dart';
 import 'package:swipify/features/navigation/main_nav_screen.dart';
 import 'package:swipify/core/theme.dart';
 
@@ -109,15 +109,20 @@ class _SignupScreenState extends State<SignupScreen> {
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     if (phone.isEmpty) { _showError("Phone number is required"); return false; }
-    if (!phone.startsWith('+')) { _showError("Include country code (e.g. +63)"); return false; }
-    if (phone.length < 10) { _showError("Phone number is too short"); return false; }
     if (email.isEmpty) { _showError("Email address is required"); return false; }
     if (!email.contains('@') || !email.contains('.')) { _showError("Enter a valid email"); return false; }
+
+    // Normalize phone number — accepts 09x, +63x, 9x, 63x
+    final normalized = PhoneUtils.normalizePH(phone);
+    if (!PhoneUtils.isValidPH(normalized)) {
+      _showError("Invalid phone number. Use 09XXXXXXXXX format.");
+      return false;
+    }
 
     setState(() => _isCheckingPhone = true);
     try {
       final auth = context.read<AuthProvider>();
-      final existingUser = await auth.fetchUserByPhone(phone);
+      final existingUser = await auth.fetchUserByPhone(normalized);
       if (existingUser != null) {
         _showError("This phone number is already linked to another account (${existingUser['email_masked']}).");
         return false;
@@ -383,9 +388,12 @@ class _SignupScreenState extends State<SignupScreen> {
 
           _buildLabel("Phone Number"),
           const SizedBox(height: 8),
-          _buildField(_phoneController, "+63 912 345 6789", Icons.phone_android_outlined, keyboardType: TextInputType.phone),
+          _buildField(_phoneController, "0912 345 6789", Icons.phone_android_outlined, 
+            keyboardType: TextInputType.phone,
+            inputFormatters: [PHPhoneFormatter()],
+          ),
           const SizedBox(height: 6),
-          Text("Include country code. Used for OTP login.", style: GoogleFonts.inter(fontSize: 11, color: SwipifyTheme.textMuted)),
+          Text("Accepts 09XX format with automatic formatting.", style: GoogleFonts.inter(fontSize: 11, color: SwipifyTheme.textMuted)),
 
           const SizedBox(height: 24),
           _buildLabel("Email Address"),
@@ -661,9 +669,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Widget _buildField(TextEditingController c, String hint, IconData icon, {
     bool obscure = false, TextInputType? keyboardType, Widget? suffixIcon, Function(String)? onChanged,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       controller: c, obscureText: obscure, keyboardType: keyboardType, onChanged: onChanged,
+      inputFormatters: inputFormatters,
       style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, size: 20, color: SwipifyTheme.primaryColor),

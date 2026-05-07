@@ -119,7 +119,7 @@ class _CategorySectionState extends State<_CategorySection> {
           const SizedBox(height: 160, child: Center(child: CircularProgressIndicator(color: SwipifyTheme.accentColor, strokeWidth: 2)))
         else if (_products.isNotEmpty)
           SizedBox(
-            height: 220,
+            height: 235, // Increased from 220 to avoid overflows
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -297,7 +297,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio: 0.72,
+                          childAspectRatio: 0.69, // Increased height slightly
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 16,
                         ),

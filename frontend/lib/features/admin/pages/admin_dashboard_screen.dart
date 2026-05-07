@@ -487,9 +487,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ListTile(
             leading: const Icon(Icons.exit_to_app, color: Colors.red),
             title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-            onTap: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.of(context).pushReplacementNamed('/login');
+            onTap: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/login');
+              }
             },
           ),
           const SizedBox(height: 16),
