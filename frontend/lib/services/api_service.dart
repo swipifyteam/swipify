@@ -25,10 +25,12 @@ class ApiService {
     return dotenv.env['BASE_URL_WEB']!;
   } else if (Platform.isAndroid) {
     return dotenv.env['BASE_URL_ANDROID']!;
+  } else if (Platform.isIOS) {
+    return dotenv.env['BASE_URL_ANDROID']!;
   } else {
-    return dotenv.env['BASE_URL_DEFAULT']!;
+    return dotenv.env['BASE_URL_PROD'] ?? dotenv.env['BASE_URL_DEFAULT']!;
   }
-  }
+}
 
   // ── Generic Helpers ──────────────────────────────────────────────────────────
 
