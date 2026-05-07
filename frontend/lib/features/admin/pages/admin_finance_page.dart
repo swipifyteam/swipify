@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/services/admin_service.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:swipify/core/utils/responsive_helper.dart';
 
 class AdminFinancePage extends StatefulWidget {
   const AdminFinancePage({super.key});
@@ -44,15 +45,24 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('Finance Center', style: SwipifyTheme.heading1),
-              const Spacer(),
+              Expanded(
+                child: Text(
+                  'Finance Center', 
+                  style: isMobile ? SwipifyTheme.heading2 : SwipifyTheme.heading1,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadFinanceOverview,
@@ -67,9 +77,16 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
             // KPI Cards Grid
             LayoutBuilder(
               builder: (context, constraints) {
-                int crossAxisCount = 4;
-                if (constraints.maxWidth < 800) crossAxisCount = 2;
-                if (constraints.maxWidth < 400) crossAxisCount = 1;
+                int crossAxisCount = ResponsiveHelper.getCrossAxisCount(
+                  context,
+                  mobile: 1,
+                  tablet: 2,
+                  desktop: 4,
+                );
+                final bool isMobile = ResponsiveHelper.isMobile(context);
+                final bool isTablet = ResponsiveHelper.isTablet(context);
+                // Adjust aspect ratio based on width
+                double childAspectRatio = isMobile ? 2.5 : (isTablet ? 1.8 : 1.5);
                 
                 return GridView.count(
                   shrinkWrap: true,
@@ -77,7 +94,7 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                   crossAxisCount: crossAxisCount,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 1.5,
+                  childAspectRatio: childAspectRatio,
                   children: [
                     _buildFinanceCard('Total GMV', '₱${(_overview['total_gmv'] ?? 0).toStringAsFixed(2)}', Icons.monetization_on, Colors.purple),
                     _buildFinanceCard('Net Revenue', '₱${(_overview['net_revenue'] ?? 0).toStringAsFixed(2)}', Icons.account_balance_wallet, Colors.teal),
@@ -92,11 +109,10 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
             Text('Financial Activity', style: SwipifyTheme.heading2),
             const SizedBox(height: 16),
             
-            // Temporary Chart Placeholder using fl_chart
+            // Responsive Chart Container
             Container(
-              height: 300,
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -113,11 +129,12 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                 children: [
                   Text('Revenue Breakdown', style: SwipifyTheme.productTitle),
                   const SizedBox(height: 24),
-                  Expanded(
+                  AspectRatio(
+                    aspectRatio: isMobile ? 1.2 : 2.5,
                     child: Builder(
                       builder: (context) {
                         final weeklyData = List<num>.from(_overview['weekly_revenue'] ?? [0.0, 0.0, 0.0, 0.0]);
-                        final maxVal = weeklyData.reduce((curr, next) => curr > next ? curr : next).toDouble();
+                        final maxVal = weeklyData.isEmpty ? 0.0 : weeklyData.reduce((curr, next) => curr > next ? curr : next).toDouble();
                         final double dynamicMaxY = maxVal > 0 ? maxVal * 1.2 : 1000.0;
 
                         return BarChart(
@@ -141,13 +158,13 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   getTitlesWidget: (double value, TitleMeta meta) {
-                                    const style = TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12);
+                                    const style = TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 10);
                                     String text;
                                     switch (value.toInt()) {
-                                      case 0: text = 'Week 1'; break;
-                                      case 1: text = 'Week 2'; break;
-                                      case 2: text = 'Week 3'; break;
-                                      case 3: text = 'Week 4'; break;
+                                      case 0: text = isMobile ? 'W1' : 'Week 1'; break;
+                                      case 1: text = isMobile ? 'W2' : 'Week 2'; break;
+                                      case 2: text = isMobile ? 'W3' : 'Week 3'; break;
+                                      case 3: text = isMobile ? 'W4' : 'Week 4'; break;
                                       default: text = ''; break;
                                     }
                                     return SideTitleWidget(
@@ -161,7 +178,7 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true, 
-                                  reservedSize: 50,
+                                  reservedSize: 40,
                                   getTitlesWidget: (value, meta) {
                                     if (value == 0 || value == dynamicMaxY) return const SizedBox.shrink();
                                     return SideTitleWidget(
@@ -169,7 +186,7 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                                       space: 8,
                                       child: Text(
                                         value >= 1000 ? '${(value/1000).toStringAsFixed(1)}k' : value.toStringAsFixed(0),
-                                        style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                        style: const TextStyle(color: Colors.grey, fontSize: 9),
                                       ),
                                     );
                                   },
@@ -187,7 +204,7 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                                   BarChartRodData(
                                     toY: weeklyData.length > index ? weeklyData[index].toDouble() : 0.0,
                                     color: Colors.teal,
-                                    width: 20,
+                                    width: isMobile ? 12 : 20,
                                     borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                                   )
                                 ],
@@ -209,7 +226,7 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
 
   Widget _buildFinanceCard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16), // Reduced from 20 for mobile
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -233,28 +250,34 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: color, size: 20),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          const SizedBox(height: 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
           ),
         ],

@@ -21,6 +21,7 @@ import 'package:swipify/features/seller/presentation/pages/marketing/loyalty_poi
 import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:swipify/screens/chat_list_screen.dart';
+import 'package:swipify/core/utils/responsive_helper.dart';
 
 // ─── Colour palette ──────────────────────────────────────────────────────────
 const _kPrimary    = Color(0xFF36454F); // Charcoal
@@ -62,10 +63,6 @@ const _navDefs = [
   (_NavItem.settings,   Icons.settings_rounded,       'Settings'),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Responsive breakpoint: below this width we use a Drawer instead of sidebar
-const double _kDrawerBreakpoint = 768;
-
 class SellerDashboardPage extends StatefulWidget {
   const SellerDashboardPage({super.key});
   @override
@@ -91,27 +88,27 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
     context.read<SellerProductsProvider>().fetchSellerProducts(uid);
   }
 
-  bool _isNarrow(BuildContext context) =>
-      MediaQuery.of(context).size.width < _kDrawerBreakpoint;
-
   void _onNavSelect(_NavItem item) {
     setState(() => _active = item);
     // Close the drawer on mobile after selection
-    if (_isNarrow(context) && _scaffoldKey.currentState?.isDrawerOpen == true) {
+    if (!ResponsiveHelper.isDesktop(context) && _scaffoldKey.currentState?.isDrawerOpen == true) {
       Navigator.of(context).pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final narrow = _isNarrow(context);
+    final isMobile  = ResponsiveHelper.isMobile(context);
+    final isTablet  = ResponsiveHelper.isTablet(context);
+    final isDesktop = ResponsiveHelper.isDesktop(context);
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: _kSurface,
-      // Drawer only available on mobile
-      drawer: narrow
+      // Drawer only available on mobile/tablet
+      drawer: !isDesktop
           ? Drawer(
+              width: 280,
               backgroundColor: _kPrimary,
               child: _DrawerContent(
                 active: _active,
@@ -119,15 +116,18 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
               ),
             )
           : null,
-      // AppBar with hamburger only on mobile
-      appBar: narrow
+      // AppBar with hamburger on mobile/tablet
+      appBar: !isDesktop
           ? AppBar(
               backgroundColor: _kPrimary,
               elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-              ),
+              centerTitle: true,
+              leading: (isMobile || isTablet)
+                  ? IconButton(
+                      icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                    )
+                  : null,
               title: Text(
                 _navLabel(_active),
                 style: GoogleFonts.inter(
@@ -136,24 +136,35 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   fontSize: 16,
                 ),
               ),
+              actions: [
+                if (_active == _NavItem.messages)
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                    onPressed: () {
+                      // refresh logic
+                    },
+                  ),
+                const SizedBox(width: 8),
+              ],
             )
           : null,
-      body: narrow
-          // Mobile: just the body, sidebar is in Drawer
-          ? _body()
-          // Desktop: persistent sidebar + body
-          : Row(
-              children: [
-                _Sidebar(
-                  active: _active,
-                  expanded: _sidebarExpanded,
-                  onSelect: _onNavSelect,
-                  onToggle: () =>
-                      setState(() => _sidebarExpanded = !_sidebarExpanded),
-                ),
-                Expanded(child: _body()),
-              ],
+      body: Row(
+        children: [
+          // Sidebar only visible on Desktop
+          if (isDesktop)
+            _Sidebar(
+              active: _active,
+              expanded: _sidebarExpanded,
+              onSelect: _onNavSelect,
+              onToggle: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
+          Expanded(
+            child: SafeArea(
+              child: _body(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -458,19 +469,25 @@ class _ModuleBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = ResponsiveHelper.isDesktop(context);
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    // Hide module bar title on mobile if it's already in the Scaffold AppBar
+    if (!isDesktop) return const SizedBox.shrink();
+
     return Container(
-      height: 56,
+      height: 64,
       color: _kCard,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
           Text(
-            title, 
-            style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: _kTextPrimary),
+            title,
+            style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: _kTextPrimary),
           ),
           const Spacer(),
           if (actions != null) ...actions!,
-          if (showDate) ...[
+          if (showDate && !isMobile) ...[
             if (actions != null && actions!.isNotEmpty) const SizedBox(width: 16),
             Text(
               DateFormat('EEEE, d MMM yyyy').format(DateTime.now()),
@@ -483,7 +500,7 @@ class _ModuleBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => const Size.fromHeight(64);
 }
 
 /// KPI stat card
@@ -499,7 +516,7 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(14),
@@ -508,28 +525,48 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Container(
-                width: 40, height: 40,
+                width: 36, height: 36,
                 decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: color, size: 18),
               ),
               const Spacer(),
             ],
           ),
-          const SizedBox(height: 14),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: _kTextPrimary)),
+          const SizedBox(height: 12),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: _kTextPrimary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(label, style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           if (sub != null) ...[
-            const SizedBox(height: 4),
-            Text(sub!, style: GoogleFonts.inter(fontSize: 11, color: _kGreen, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Flexible(
+              child: Text(
+                sub!,
+                style: GoogleFonts.inter(fontSize: 10, color: _kGreen, fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ],
       ),
@@ -543,11 +580,22 @@ class _SectionHeader extends StatelessWidget {
   final Widget? trailing;
   const _SectionHeader({required this.title, this.trailing});
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Text(title, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: _kTextPrimary)),
-    const Spacer(),
-    ?trailing,
-  ]);
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: _kTextPrimary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+          ],
+        ],
+      );
 }
 
 Widget _pillBadge(String text, Color bg) => Container(
@@ -581,14 +629,14 @@ class _OverviewModule extends StatelessWidget {
           child: sp.isLoading
               ? const Center(child: CircularProgressIndicator(color: _kAccent))
               : ListView(
-                  padding: const EdgeInsets.all(24),
+                  padding: ResponsiveHelper.getPadding(context),
                   children: [
                     // KPI row
                     GridView.count(
-                      crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : 2,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      mainAxisExtent: 180,
+                      crossAxisCount: ResponsiveHelper.getCrossAxisCount(context, mobile: 1, tablet: 2, desktop: 4),
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      mainAxisExtent: ResponsiveHelper.isMobile(context) ? 140 : 160,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
@@ -682,6 +730,8 @@ class _OrderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = OrderModel.getStatusColor(order.status);
+    final isMobile = ResponsiveHelper.isMobile(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -690,34 +740,66 @@ class _OrderRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _kBorder),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 8, height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('#${order.id.substring(0, 8).toUpperCase()}',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: _kTextPrimary)),
-                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 8, height: 8,
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('#${order.id.substring(0, 8).toUpperCase()}',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: _kTextPrimary)),
+                    const Spacer(),
+                    _pillBadge(order.formattedStatus, color),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${order.items.length} item${order.items.length > 1 ? 's' : ''}',
+                        style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 12)),
+                    Text('₱${NumberFormat('#,##0.00').format(order.totalPrice)}',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: _kTextPrimary)),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(_timeAgo(order.createdAt),
-                    style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 10, fontWeight: FontWeight.w500)),
+                    style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 10)),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('#${order.id.substring(0, 8).toUpperCase()}',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: _kTextPrimary)),
+                      const SizedBox(height: 2),
+                      Text(_timeAgo(order.createdAt),
+                          style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 10, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
+                Text('${order.items.length} item${order.items.length > 1 ? 's' : ''}',
+                    style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 12)),
+                const SizedBox(width: 16),
+                Text('₱${NumberFormat('#,##0.00').format(order.totalPrice)}',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: _kTextPrimary)),
+                const SizedBox(width: 16),
+                _pillBadge(order.formattedStatus, color),
               ],
             ),
-          ),
-          Text('${order.items.length} item${order.items.length > 1 ? 's' : ''}',
-              style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 12)),
-          const SizedBox(width: 16),
-          Text('₱${NumberFormat('#,##0.00').format(order.totalPrice)}',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: _kTextPrimary)),
-          const SizedBox(width: 16),
-          _pillBadge(order.formattedStatus, color),
-        ],
-      ),
     );
   }
 }
@@ -748,16 +830,21 @@ class _LowStockRow extends StatelessWidget {
             child: Text(product.name, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                 overflow: TextOverflow.ellipsis),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: product.stock == 0 ? _kRed.withValues(alpha: 0.12) : _kOrange.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              product.stock == 0 ? 'OUT OF STOCK' : '${product.stock} left',
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700,
-                  color: product.stock == 0 ? _kRed : _kOrange),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: product.stock == 0 ? _kRed.withValues(alpha: 0.12) : _kOrange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                product.stock == 0 ? 'OUT OF STOCK' : '${product.stock} left',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                    color: product.stock == 0 ? _kRed : _kOrange),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ],
@@ -812,7 +899,7 @@ class _ProductsModuleState extends State<_ProductsModule> {
         _ModuleBar(
           title: 'Products (${spp.products.length})',
           actions: [
-            if (_selected.isNotEmpty) ...[
+            if (_selected.isNotEmpty && !ResponsiveHelper.isMobile(context)) ...[
               _ActionButton(
                 icon: Icons.delete_outline_rounded,
                 label: 'Delete (${_selected.length})',
@@ -823,7 +910,7 @@ class _ProductsModuleState extends State<_ProductsModule> {
             ],
             _ActionButton(
               icon: Icons.add_rounded,
-              label: 'Add Product',
+              label: ResponsiveHelper.isMobile(context) ? 'Add' : 'Add Product',
               color: _kAccent,
               onPressed: () => _openAddProduct(context, uid),
             ),
@@ -833,72 +920,103 @@ class _ProductsModuleState extends State<_ProductsModule> {
         // Filter bar
         Container(
           color: _kCard,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          child: Row(
+          padding: ResponsiveHelper.isMobile(context) 
+              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
+              : const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+          child: Column(
             children: [
-              // Search
-              SizedBox(
-                width: 260,
-                height: 38,
-                child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: (_) => setState(() {}),
-                  style: GoogleFonts.inter(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Search products…',
-                    hintStyle: GoogleFonts.inter(fontSize: 13, color: _kTextSecondary),
-                    prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _kTextSecondary),
-                    filled: true,
-                    fillColor: _kSurface,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              Row(
+                children: [
+                  // Search
+                  Expanded(
+                    child: SizedBox(
+                      height: 38,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (_) => setState(() {}),
+                        style: GoogleFonts.inter(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search products…',
+                          hintStyle: GoogleFonts.inter(fontSize: 13, color: _kTextSecondary),
+                          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _kTextSecondary),
+                          filled: true,
+                          fillColor: _kSurface,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!ResponsiveHelper.isMobile(context)) ...[
+                    const SizedBox(width: 12),
+                    _FilterChipRow(
+                      label: 'Category',
+                      options: categories,
+                      value: _selectedCategory,
+                      onChanged: (v) => setState(() => _selectedCategory = v),
+                    ),
+                    const SizedBox(width: 12),
+                    _FilterChipRow(
+                      label: 'Status',
+                      options: ['All', 'Active', 'Inactive'],
+                      value: _selectedStatus,
+                      onChanged: (v) => setState(() => _selectedStatus = v),
+                    ),
+                  ],
+                ],
+              ),
+              if (ResponsiveHelper.isMobile(context)) ...[
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _FilterChipRow(
+                        label: 'Category',
+                        options: categories,
+                        value: _selectedCategory,
+                        onChanged: (v) => setState(() => _selectedCategory = v),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChipRow(
+                        label: 'Status',
+                        options: ['All', 'Active', 'Inactive'],
+                        value: _selectedStatus,
+                        onChanged: (v) => setState(() => _selectedStatus = v),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              _FilterChipRow(
-                label: 'Category',
-                options: categories,
-                value: _selectedCategory,
-                onChanged: (v) => setState(() => _selectedCategory = v),
-              ),
-              const SizedBox(width: 12),
-              _FilterChipRow(
-                label: 'Status',
-                options: ['All', 'Active', 'Inactive'],
-                value: _selectedStatus,
-                onChanged: (v) => setState(() => _selectedStatus = v),
-              ),
-              const Spacer(),
-              Text('${displayed.length} results',
-                  style: GoogleFonts.inter(color: _kTextSecondary, fontSize: 12)),
+              ],
             ],
           ),
         ),
         const Divider(height: 1, color: _kBorder),
 
-        // Table
+        // List / Table
         Expanded(
           child: spp.isLoading
               ? const Center(child: CircularProgressIndicator(color: _kAccent))
               : displayed.isEmpty
                   ? _emptyBox('No products found')
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          // Table header
-                          _ProductTableHeader(
-                            allSelected: _selected.length == displayed.length && displayed.isNotEmpty,
-                            onSelectAll: (v) {
-                              setState(() {
-                                if (v == true) { _selected.addAll(displayed.map((p) => p.id)); }
-                                else { _selected.clear(); }
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 4),
-                          ...displayed.map((p) => _ProductTableRow(
+                  : ListView.builder(
+                      padding: ResponsiveHelper.getPadding(context),
+                      itemCount: displayed.length + (ResponsiveHelper.isDesktop(context) ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (ResponsiveHelper.isDesktop(context)) {
+                          if (index == 0) {
+                            return _ProductTableHeader(
+                              allSelected: _selected.length == displayed.length && displayed.isNotEmpty,
+                              onSelectAll: (v) {
+                                setState(() {
+                                  if (v == true) { _selected.addAll(displayed.map((p) => p.id)); }
+                                  else { _selected.clear(); }
+                                });
+                              },
+                            );
+                          }
+                          final p = displayed[index - 1];
+                          return _ProductTableRow(
                             product: p,
                             isSelected: _selected.contains(p.id),
                             onSelect: (v) {
@@ -909,9 +1027,20 @@ class _ProductsModuleState extends State<_ProductsModule> {
                             onTogglePublish: () {
                               spp.updateProduct(p.id, {'is_published': !p.isPublished});
                             },
-                          )),
-                        ],
-                      ),
+                          );
+                        } else {
+                          // Mobile / Tablet Card View
+                          final p = displayed[index];
+                          return _ProductMobileCard(
+                            product: p,
+                            onEdit: () => _openEditProduct(context, p, uid),
+                            onDelete: () => _confirmDelete(spp, p.id, uid),
+                            onTogglePublish: () {
+                              spp.updateProduct(p.id, {'is_published': !p.isPublished});
+                            },
+                          );
+                        }
+                      },
                     ),
         ),
       ],
@@ -1181,6 +1310,110 @@ class _ProductTableRow extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODULE 3 ── ORDERS
 // ═══════════════════════════════════════════════════════════════════════════════
+class _ProductMobileCard extends StatelessWidget {
+  final ProductModel product;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onTogglePublish;
+
+  const _ProductMobileCard({
+    required this.product,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTogglePublish,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final stockColor = product.stock == 0 ? _kRed : product.stock < 10 ? _kOrange : _kGreen;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder),
+        boxShadow: const [BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(product.primaryImage, width: 60, height: 60, fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(width: 60, height: 60, color: _kSurface,
+                        child: const Icon(Icons.image_not_supported_rounded, color: _kBorder))),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(product.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: _kTextPrimary),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('₱${NumberFormat('#,##0.00').format(product.price)}',
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: _kAccent)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: _kBorder),
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('STOCK', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _kTextSecondary)),
+                  const SizedBox(height: 2),
+                  Text('${product.stock} units', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: stockColor)),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('STATUS', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _kTextSecondary)),
+                  const SizedBox(height: 2),
+                  _pillBadge(product.isPublished ? 'Active' : 'Inactive', product.isPublished ? _kGreen : _kTextSecondary),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.edit_outlined, size: 20, color: _kBlue),
+                    onPressed: onEdit,
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20, color: _kRed),
+                    onPressed: onDelete,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OrdersModule extends StatefulWidget {
   const _OrdersModule();
   @override
@@ -1259,7 +1492,7 @@ class _OrdersModuleState extends State<_OrdersModule>
                     return filtered.isEmpty
                         ? _emptyBox('No ${s == 'all' ? '' : '$s '}orders')
                         : ListView.builder(
-                            padding: const EdgeInsets.all(16),
+                            padding: ResponsiveHelper.getPadding(context),
                             itemCount: filtered.length,
                             itemBuilder: (_, i) => _OrderCard(order: filtered[i]),
                           );
@@ -1440,7 +1673,7 @@ class _MarketingModule extends StatelessWidget {
             children: [
               // Promo tiles
               GridView.count(
-                crossAxisCount: MediaQuery.of(context).size.width > 800 ? 2 : 1,
+                crossAxisCount: ResponsiveHelper.getCrossAxisCount(context, mobile: 1, tablet: 2, desktop: 2),
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 mainAxisExtent: 90,
@@ -1535,9 +1768,19 @@ class _MarketingCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: _kTextPrimary)),
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: _kTextPrimary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 3),
-                  Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary)),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -1581,10 +1824,10 @@ class _FinanceModule extends StatelessWidget {
             children: [
               // Balance overview cards
               GridView.count(
-                crossAxisCount: MediaQuery.of(context).size.width > 900 ? 3 : (MediaQuery.of(context).size.width > 600 ? 2 : 1),
+                crossAxisCount: ResponsiveHelper.getCrossAxisCount(context, mobile: 1, tablet: 2, desktop: 3),
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                mainAxisExtent: 180,
+                mainAxisExtent: ResponsiveHelper.isMobile(context) ? 140 : 160,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
@@ -1639,6 +1882,7 @@ class _EarningsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = _timeAgo(order.createdAt);
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1659,17 +1903,40 @@ class _EarningsRow extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('#${order.id.substring(0, 8).toUpperCase()}',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: _kTextPrimary)),
-                Text(date, style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary)),
+                Text(
+                  '#${order.id.substring(0, 8).toUpperCase()}',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: _kTextPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  date,
+                  style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
-          _pillBadge(order.formattedStatus, OrderModel.getStatusColor(order.status)),
+          if (!isMobile) ...[
+            const SizedBox(width: 8),
+            _pillBadge(order.formattedStatus, OrderModel.getStatusColor(order.status)),
+          ],
           const SizedBox(width: 16),
-          Text('+₱${NumberFormat('#,##0.00').format(order.totalPrice)}',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 15, color: _kGreen)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '+₱${NumberFormat('#,##0.00').format(order.totalPrice)}',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 15, color: _kGreen),
+              ),
+              if (isMobile)
+                _pillBadge(order.formattedStatus, OrderModel.getStatusColor(order.status)),
+            ],
+          ),
         ],
       ),
     );
@@ -1786,26 +2053,20 @@ class _SettingsModuleState extends State<_SettingsModule> {
                 children: [
                   _SettingRow(
                     label: 'Store Name',
-                    child: SizedBox(
-                      width: 280,
-                      child: TextFormField(
-                        controller: _storeNameCtrl,
-                        style: GoogleFonts.inter(fontSize: 13),
-                        decoration: _settingInputDec('Enter store name'),
-                      ),
+                    child: TextFormField(
+                      controller: _storeNameCtrl,
+                      style: GoogleFonts.inter(fontSize: 13),
+                      decoration: _settingInputDec('Enter store name'),
                     ),
                   ),
                   _SettingRow(
                     label: 'Description',
                     sub: 'Tell customers about your shop',
-                    child: SizedBox(
-                      width: 280,
-                      child: TextFormField(
-                        controller: _storeDescCtrl,
-                        maxLines: 3,
-                        style: GoogleFonts.inter(fontSize: 13),
-                        decoration: _settingInputDec('Describe your shop...'),
-                      ),
+                    child: TextFormField(
+                      controller: _storeDescCtrl,
+                      maxLines: 3,
+                      style: GoogleFonts.inter(fontSize: 13),
+                      decoration: _settingInputDec('Describe your shop...'),
                     ),
                   ),
                   _SettingRow(
@@ -1823,7 +2084,7 @@ class _SettingsModuleState extends State<_SettingsModule> {
                             ),
                           ),
                         SizedBox(
-                          width: 280,
+                          width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: _isUploadingLogo ? null : _pickLogo,
                             icon: _isUploadingLogo
@@ -1851,11 +2112,11 @@ class _SettingsModuleState extends State<_SettingsModule> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(_bannerUrlCtrl.text, width: 200, height: 80, fit: BoxFit.cover),
+                              child: Image.network(_bannerUrlCtrl.text, width: double.infinity, height: 100, fit: BoxFit.cover),
                             ),
                           ),
                         SizedBox(
-                          width: 280,
+                          width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: _isUploadingBanner ? null : _pickBanner,
                             icon: _isUploadingBanner
@@ -2041,25 +2302,36 @@ class _SettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final labelSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextPrimary)),
+        if (sub != null) ...[
+          const SizedBox(height: 2),
+          Text(sub!, style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary)),
+        ],
+        if (isMobile) const SizedBox(height: 8),
+      ],
+    );
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextPrimary)),
-                if (sub != null) ...[
-                  const SizedBox(height: 2),
-                  Text(sub!, style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary)),
-                ],
+                labelSection,
+                child,
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(flex: 1, child: labelSection),
+                const SizedBox(width: 24),
+                Expanded(flex: 2, child: child),
               ],
             ),
-          ),
-          child,
-        ],
-      ),
     );
   }
 }
@@ -2156,6 +2428,10 @@ class _ProductFormPageState extends State<_ProductFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final isDesktop = ResponsiveHelper.isDesktop(context);
+
     return Scaffold(
       backgroundColor: _kSurface,
       appBar: AppBar(
@@ -2171,182 +2447,92 @@ class _ProductFormPageState extends State<_ProductFormPage> {
       ),
       body: Form(
         key: _formKey,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left: details form
-            Expanded(
-              flex: 2,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _formSection('Basic Information', [
-                      _field(controller: _nameCtrl, label: 'Product Name *',
-                          validator: (v) => v?.isEmpty == true ? 'Required' : null),
-                      const SizedBox(height: 14),
-                      _field(controller: _descCtrl, label: 'Description *',
-                          maxLines: 4,
-                          validator: (v) => v?.isEmpty == true ? 'Required' : null),
-                      const SizedBox(height: 14),
-                      // Category
-                      DropdownButtonFormField<String>(
-                        initialValue: (_categories.contains(_category) && _category.isNotEmpty) ? _category : null,
-                        items: _categories.isEmpty
-                            ? [const DropdownMenuItem(value: 'General', child: Text('General'))]
-                            : _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                        onChanged: (v) => setState(() => _category = v ?? ''),
-                        decoration: _inputDec('Category *'),
-                        validator: (v) => (v == null && _category.isEmpty) ? 'Required' : null,
-                      ),
-                    ]),
-                    const SizedBox(height: 16),
-                    _formSection('Pricing & Inventory', [
-                      Row(children: [
-                        Expanded(
-                          child: _field(controller: _priceCtrl, label: 'Price (₱) *',
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                if (v?.isEmpty == true) return 'Required';
-                                if (double.tryParse(v!) == null) return 'Invalid';
-                                return null;
-                              }),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _field(controller: _stockCtrl, label: 'Stock Qty *',
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                if (v?.isEmpty == true) return 'Required';
-                                if (int.tryParse(v!) == null) return 'Invalid';
-                                return null;
-                              }),
-                        ),
-                      ]),
-                      const SizedBox(height: 14),
-                      Row(children: [
-                        Expanded(
-                          child: _field(controller: _skuCtrl, label: 'SKU',
-                              validator: null),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _field(controller: _weightCtrl, label: 'Weight (kg)',
-                              keyboardType: TextInputType.number,
-                              validator: null),
-                        ),
-                      ]),
-                    ]),
-                    const SizedBox(height: 16),
-                    _formSection('Visibility', [
-                      SwitchListTile(
-                        value: _isPublished,
-                        onChanged: (v) => setState(() => _isPublished = v),
-                        title: Text('Published', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                          _isPublished ? 'Visible to customers' : 'Hidden from customers',
-                          style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary),
-                        ),
-                        activeThumbColor: _kAccent,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ]),
-                  ],
-                ),
-              ),
-            ),
-
-            const VerticalDivider(width: 1, color: _kBorder),
-
-            // Right: images + save
-            Expanded(
-              flex: 1,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Product Images', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+        child: isMobile 
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _formSection('Basic Information', [
+                    _field(controller: _nameCtrl, label: 'Product Name *',
+                        validator: (v) => v?.isEmpty == true ? 'Required' : null),
+                    const SizedBox(height: 14),
+                    _field(controller: _descCtrl, label: 'Description *',
+                        maxLines: 4,
+                        validator: (v) => v?.isEmpty == true ? 'Required' : null),
+                    const SizedBox(height: 14),
+                    _dropdownField(),
+                  ]),
+                  const SizedBox(height: 16),
+                  _formSection('Pricing & Inventory', [
+                    _field(controller: _priceCtrl, label: 'Price (₱) *',
+                        keyboardType: TextInputType.number),
                     const SizedBox(height: 12),
-
-                    // Add Image button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _isUploading ? null : _pickImage,
-                        icon: _isUploading 
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.add_a_photo_rounded, size: 20),
-                        label: Text(_isUploading ? 'Uploading...' : 'Upload Image'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: BorderSide(color: _kBorder),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          foregroundColor: _kTextPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Image grid
-                    if (_images.isNotEmpty)
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8,
-                        ),
-                        itemCount: _images.length,
-                        itemBuilder: (_, i) => Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(_images[i], fit: BoxFit.cover,
-                                  width: double.infinity, height: double.infinity,
-                                  errorBuilder: (_, _, _) => Container(
-                                    color: _kSurface,
-                                    child: const Icon(Icons.broken_image_rounded, color: _kBorder),
-                                  )),
-                            ),
-                            Positioned(
-                              top: 4, right: 4,
-                              child: InkWell(
-                                onTap: () => setState(() => _images.removeAt(i)),
-                                child: Container(
-                                  decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(30)),
-                                  padding: const EdgeInsets.all(4),
-                                  child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _save,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kAccent, foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(width: 20, height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Text(_isEdit ? 'Save Changes' : 'Add Product'),
-                      ),
-                    ),
-                  ],
-                ),
+                    _field(controller: _stockCtrl, label: 'Stock Qty *',
+                        keyboardType: TextInputType.number),
+                  ]),
+                  const SizedBox(height: 16),
+                  _formSection('Images', [_imageUploader()]),
+                  const SizedBox(height: 24),
+                  _saveButton(),
+                  const SizedBox(height: 40),
+                ],
               ),
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left: details form
+                Expanded(
+                  flex: 2,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _formSection('Basic Information', [
+                          _field(controller: _nameCtrl, label: 'Product Name *',
+                              validator: (v) => v?.isEmpty == true ? 'Required' : null),
+                          const SizedBox(height: 14),
+                          _field(controller: _descCtrl, label: 'Description *',
+                              maxLines: 4,
+                              validator: (v) => v?.isEmpty == true ? 'Required' : null),
+                          const SizedBox(height: 14),
+                          _dropdownField(),
+                        ]),
+                        const SizedBox(height: 16),
+                        _formSection('Pricing & Inventory', [
+                          Row(children: [
+                            Expanded(
+                              child: _field(controller: _priceCtrl, label: 'Price (₱) *',
+                                  keyboardType: TextInputType.number),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _field(controller: _stockCtrl, label: 'Stock Qty *',
+                                  keyboardType: TextInputType.number),
+                            ),
+                          ]),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: _kBorder),
+                Expanded(
+                  flex: 1,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        _imageUploader(),
+                        const SizedBox(height: 24),
+                        _saveButton(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
       ),
     );
   }
@@ -2454,6 +2640,97 @@ class _ProductFormPageState extends State<_ProductFormPage> {
       }
     }
   }
+
+  Widget _dropdownField() {
+    return DropdownButtonFormField<String>(
+      value: (_categories.contains(_category) && _category.isNotEmpty) ? _category : null,
+      items: _categories.isEmpty
+          ? [const DropdownMenuItem(value: 'General', child: Text('General'))]
+          : _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+      onChanged: (v) => setState(() => _category = v ?? ''),
+      decoration: _inputDec('Category *'),
+      validator: (v) => (v == null && _category.isEmpty) ? 'Required' : null,
+    );
+  }
+
+  Widget _imageUploader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Product Images', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isUploading ? null : _pickImage,
+            icon: _isUploading 
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.add_a_photo_rounded, size: 20),
+            label: Text(_isUploading ? 'Uploading...' : 'Upload Image'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              side: BorderSide(color: _kBorder),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              foregroundColor: _kTextPrimary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_images.isNotEmpty)
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8,
+            ),
+            itemCount: _images.length,
+            itemBuilder: (_, i) => Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(_images[i], fit: BoxFit.cover,
+                      width: double.infinity, height: double.infinity,
+                      errorBuilder: (_, _, _) => Container(
+                        color: _kSurface,
+                        child: const Icon(Icons.broken_image_rounded, color: _kBorder),
+                      )),
+                ),
+                Positioned(
+                  top: 2, right: 2,
+                  child: InkWell(
+                    onTap: () => setState(() => _images.removeAt(i)),
+                    child: Container(
+                      decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(30)),
+                      padding: const EdgeInsets.all(2),
+                      child: const Icon(Icons.close_rounded, size: 10, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _saveButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isSaving ? null : _save,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _kAccent, foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+        ),
+        child: _isSaving
+            ? const SizedBox(width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : Text(_isEdit ? 'Save Changes' : 'Add Product'),
+      ),
+    );
+  }
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -2516,5 +2793,9 @@ Future<void> _downloadReport(BuildContext context, SellerProvider sp) async {
       );
     }
   }
+}
+
+String _navLabel(_NavItem item) {
+  return _navDefs.firstWhere((d) => d.$1 == item).$3;
 }
 

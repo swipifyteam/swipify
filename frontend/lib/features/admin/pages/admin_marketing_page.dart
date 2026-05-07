@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/services/admin_marketing_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:swipify/core/utils/responsive_helper.dart';
 
 class AdminMarketingPage extends StatefulWidget {
   const AdminMarketingPage({super.key});
@@ -54,55 +55,54 @@ class _AdminMarketingPageState extends State<AdminMarketingPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 900;
-        
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatsOverview(constraints.maxWidth),
-              const SizedBox(height: 32),
-              if (isNarrow)
-                Column(
-                  children: [
-                    VoucherManagementCard(
-                      vouchers: _vouchers,
-                      onRefresh: _loadData,
-                    ),
-                    const SizedBox(height: 24),
-                    const CampaignList(),
-                  ],
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 2, child: VoucherManagementCard(
-                      vouchers: _vouchers,
-                      onRefresh: _loadData,
-                    )),
-                    const SizedBox(width: 24),
-                    const Expanded(flex: 1, child: CampaignList()),
-                  ],
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+    
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildStatsOverview(context),
+          const SizedBox(height: 32),
+          if (isMobile || isTablet)
+            Column(
+              children: [
+                VoucherManagementCard(
+                  vouchers: _vouchers,
+                  onRefresh: _loadData,
                 ),
-            ],
-          ),
-        );
-      },
+                const SizedBox(height: 24),
+                const CampaignList(),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 2, child: VoucherManagementCard(
+                  vouchers: _vouchers,
+                  onRefresh: _loadData,
+                )),
+                const SizedBox(width: 24),
+                const Expanded(flex: 1, child: CampaignList()),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _buildStatsOverview(double maxWidth) {
+  Widget _buildStatsOverview(BuildContext context) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    
     final children = [
-      _buildStatCard('Total Vouchers', _stats['total_vouchers']?.toString() ?? '0', Icons.confirmation_number, Colors.blue, maxWidth),
-      _buildStatCard('Total Redemptions', _stats['total_redemptions']?.toString() ?? '0', Icons.redeem, Colors.green, maxWidth),
-      _buildStatCard('Active Campaigns', _stats['active_campaigns']?.toString() ?? '0', Icons.campaign, Colors.orange, maxWidth),
+      _buildStatCard(context, 'Total Vouchers', _stats['total_vouchers']?.toString() ?? '0', Icons.confirmation_number, Colors.blue),
+      _buildStatCard(context, 'Total Redemptions', _stats['total_redemptions']?.toString() ?? '0', Icons.redeem, Colors.green),
+      _buildStatCard(context, 'Active Campaigns', _stats['active_campaigns']?.toString() ?? '0', Icons.campaign, Colors.orange),
     ];
 
-    if (maxWidth < 700) {
+    if (isMobile) {
       return Column(
         children: children.map((c) => Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -119,9 +119,11 @@ class _AdminMarketingPageState extends State<AdminMarketingPage> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color, double maxWidth) {
+  Widget _buildStatCard(BuildContext context, String title, String value, IconData icon, Color color) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -142,7 +144,7 @@ class _AdminMarketingPageState extends State<AdminMarketingPage> {
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: isMobile ? 20 : 24),
           ),
           const SizedBox(width: 16),
           Flexible(
@@ -152,12 +154,12 @@ class _AdminMarketingPageState extends State<AdminMarketingPage> {
               children: [
                 Text(
                   title, 
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: isMobile ? 12 : 14),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   value, 
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: isMobile ? 20 : 24, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -256,6 +258,7 @@ class VoucherManagementCard extends StatelessWidget {
   }
 
   Widget _buildVoucherRow(BuildContext context, dynamic voucher) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
     final code = voucher['code'] ?? 'N/A';
     final discountType = voucher['discount_type'] ?? 'percentage';
     final value = voucher['value'] ?? 0;
@@ -275,167 +278,174 @@ class VoucherManagementCard extends StatelessWidget {
         ? '$usageCount / $usageLimit used'
         : '$usageCount used';
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isSmall = constraints.maxWidth < 600;
-        
-        if (isSmall) {
-          // Mobile-optimized layout (Column-based)
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    if (isMobile) {
+      // Mobile-optimized layout (Column-based)
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isExpired ? Colors.red.shade50 : Colors.teal.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(code, style: TextStyle(fontWeight: FontWeight.bold, color: isExpired ? Colors.red.shade700 : Colors.teal.shade700)),
-                      ),
-                      Row(
-                        children: [
-                          if (type == 'platform')
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined, size: 20),
-                              onPressed: () => _showEditVoucherDialog(context, voucher),
-                            ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                            onPressed: () => _deleteVoucher(context, voucher['id']),
-                          ),
-                        ],
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isExpired ? Colors.red.shade50 : Colors.teal.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(code, style: TextStyle(fontWeight: FontWeight.bold, color: isExpired ? Colors.red.shade700 : Colors.teal.shade700)),
                   ),
-                  const SizedBox(height: 12),
-                  Text(discountDisplay, style: SwipifyTheme.productTitle),
-                  Text('Min spend: ₱${_formatPrice(minSpend)}', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                  const SizedBox(height: 12),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(usageDisplay, style: const TextStyle(fontSize: 12)),
-                      Text(isExpired ? 'Expired' : 'Ends: ${_formatDate(endDate)}', 
-                        style: TextStyle(fontSize: 12, color: isExpired ? Colors.red : Colors.grey.shade600)),
+                      if (type == 'platform')
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          onPressed: () => _showEditVoucherDialog(context, voucher),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                        onPressed: () => _deleteVoucher(context, voucher['id']),
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(8),
+                      ),
                     ],
                   ),
                 ],
               ),
-            ),
-          );
-        }
-
-        // Desktop/Wide layout
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              // Code badge
-              SizedBox(
-                width: 120,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isExpired ? Colors.red.shade50 : Colors.teal.shade50,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: isExpired ? Colors.red.shade200 : Colors.teal.shade200),
-                      ),
-                      child: Text(
-                        code,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: isExpired ? Colors.red.shade700 : Colors.teal.shade700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(type.toUpperCase(), style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
-                  ],
+              const SizedBox(height: 12),
+              Text(discountDisplay, style: SwipifyTheme.productTitle),
+              Text('Min spend: ₱${_formatPrice(minSpend)}', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+              if (type == 'seller')
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('By $sellerName', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
                 ),
-              ),
-              const SizedBox(width: 16),
-              // Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(discountDisplay, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), overflow: TextOverflow.ellipsis),
-                    Text(
-                      'Min: ₱${_formatPrice(minSpend)}${type == 'seller' ? ' • By $sellerName' : ''}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              // Usage
-              SizedBox(
-                width: 100,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(usageDisplay, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
-                    if (usageLimit != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: LinearProgressIndicator(
-                          value: usageLimit > 0 ? (usageCount / usageLimit).clamp(0.0, 1.0) : 0.0,
-                          minHeight: 4,
-                          backgroundColor: Colors.grey.shade200,
-                          valueColor: AlwaysStoppedAnimation(usageCount >= usageLimit ? Colors.red : Colors.teal),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Status & Date
-              SizedBox(
-                width: 120,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      isExpired ? 'EXPIRED' : 'ACTIVE',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isExpired ? Colors.red : Colors.green),
-                    ),
-                    if (endDate.isNotEmpty)
-                      Text(_formatDate(endDate), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Actions
-              if (type == 'platform')
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  onPressed: () => _showEditVoucherDialog(context, voucher),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                onPressed: () => _deleteVoucher(context, voucher['id']),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(usageDisplay, style: const TextStyle(fontSize: 12)),
+                  Text(isExpired ? 'Expired' : 'Ends: ${_formatDate(endDate)}', 
+                    style: TextStyle(fontSize: 12, color: isExpired ? Colors.red : Colors.grey.shade600)),
+                ],
               ),
             ],
           ),
-        );
-      },
+        ),
+      );
+    }
+
+    // Desktop/Wide layout
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          // Code badge
+          SizedBox(
+            width: 120,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isExpired ? Colors.red.shade50 : Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: isExpired ? Colors.red.shade200 : Colors.teal.shade200),
+                  ),
+                  child: Text(
+                    code,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: isExpired ? Colors.red.shade700 : Colors.teal.shade700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(type.toUpperCase(), style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(discountDisplay, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), overflow: TextOverflow.ellipsis),
+                Text(
+                  'Min: ₱${_formatPrice(minSpend)}${type == 'seller' ? ' • By $sellerName' : ''}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          // Usage
+          SizedBox(
+            width: 100,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(usageDisplay, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+                if (usageLimit != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: LinearProgressIndicator(
+                      value: usageLimit > 0 ? (usageCount / usageLimit).clamp(0.0, 1.0) : 0.0,
+                      minHeight: 4,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(usageCount >= usageLimit ? Colors.red : Colors.teal),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Status & Date
+          SizedBox(
+            width: 120,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  isExpired ? 'EXPIRED' : 'ACTIVE',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isExpired ? Colors.red : Colors.green),
+                ),
+                if (endDate.isNotEmpty)
+                  Text(_formatDate(endDate), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Actions
+          if (type == 'platform')
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              onPressed: () => _showEditVoucherDialog(context, voucher),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+            onPressed: () => _deleteVoucher(context, voucher['id']),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -525,83 +535,88 @@ class _CreateVoucherDialogState extends State<CreateVoucherDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    
     return AlertDialog(
       title: const Text('Create Platform Voucher'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _codeController,
-                decoration: const InputDecoration(
-                  labelText: 'Voucher Code (e.g. WELCOME50)',
-                  border: OutlineInputBorder(),
+      content: SizedBox(
+        width: isMobile ? double.maxFinite : 400,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _codeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Voucher Code (e.g. WELCOME50)',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
                 ),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _discountType,
-                items: const [
-                  DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
-                  DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (₱)')),
-                ],
-                onChanged: (v) => setState(() => _discountType = v!),
-                decoration: const InputDecoration(
-                  labelText: 'Discount Type',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _discountType,
+                  items: const [
+                    DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
+                    DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (₱)')),
+                  ],
+                  onChanged: (v) => setState(() => _discountType = v!),
+                  decoration: const InputDecoration(
+                    labelText: 'Discount Type',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _valueController,
-                decoration: InputDecoration(
-                  labelText: _discountType == 'percentage' ? 'Percentage (e.g. 20)' : 'Amount (e.g. 100)',
-                  border: const OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _valueController,
+                  decoration: InputDecoration(
+                    labelText: _discountType == 'percentage' ? 'Percentage (e.g. 20)' : 'Amount (e.g. 100)',
+                    border: const OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
                 ),
-                keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _minSpendController,
-                decoration: const InputDecoration(
-                  labelText: 'Minimum Spend (₱)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _minSpendController,
+                  decoration: const InputDecoration(
+                    labelText: 'Minimum Spend (₱)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
                 ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _usageLimitController,
-                decoration: const InputDecoration(
-                  labelText: 'Usage Limit (leave blank for unlimited)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _usageLimitController,
+                  decoration: const InputDecoration(
+                    labelText: 'Usage Limit (leave blank for unlimited)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
                 ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: const Text('End Date'),
-                subtitle: Text(_endDate.toString().split(' ')[0]),
-                trailing: const Icon(Icons.calendar_today),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('End Date'),
+                  subtitle: Text(_endDate.toString().split(' ')[0]),
+                  trailing: const Icon(Icons.calendar_today),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _endDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setState(() => _endDate = picked);
+                  },
                 ),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _endDate,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                  );
-                  if (picked != null) setState(() => _endDate = picked);
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -692,71 +707,76 @@ class _EditVoucherDialogState extends State<EditVoucherDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    
     return AlertDialog(
       title: const Text('Edit Platform Voucher'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _codeController,
-                decoration: const InputDecoration(labelText: 'Voucher Code', border: OutlineInputBorder()),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _discountType,
-                items: const [
-                  DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
-                  DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (₱)')),
-                ],
-                onChanged: (v) => setState(() => _discountType = v!),
-                decoration: const InputDecoration(labelText: 'Discount Type', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _valueController,
-                decoration: InputDecoration(
-                  labelText: _discountType == 'percentage' ? 'Percentage' : 'Amount (₱)',
-                  border: const OutlineInputBorder(),
+      content: SizedBox(
+        width: isMobile ? double.maxFinite : 400,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _codeController,
+                  decoration: const InputDecoration(labelText: 'Voucher Code', border: OutlineInputBorder()),
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
                 ),
-                keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _minSpendController,
-                decoration: const InputDecoration(labelText: 'Minimum Spend (₱)', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _usageLimitController,
-                decoration: const InputDecoration(labelText: 'Usage Limit (blank = unlimited)', border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: const Text('End Date'),
-                subtitle: Text(_endDate.toString().split(' ')[0]),
-                trailing: const Icon(Icons.calendar_today),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _discountType,
+                  items: const [
+                    DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
+                    DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (₱)')),
+                  ],
+                  onChanged: (v) => setState(() => _discountType = v!),
+                  decoration: const InputDecoration(labelText: 'Discount Type', border: OutlineInputBorder()),
                 ),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _endDate,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                  );
-                  if (picked != null) setState(() => _endDate = picked);
-                },
-              ),
-            ],
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _valueController,
+                  decoration: InputDecoration(
+                    labelText: _discountType == 'percentage' ? 'Percentage' : 'Amount (₱)',
+                    border: const OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _minSpendController,
+                  decoration: const InputDecoration(labelText: 'Minimum Spend (₱)', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _usageLimitController,
+                  decoration: const InputDecoration(labelText: 'Usage Limit (blank = unlimited)', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: const Text('End Date'),
+                  subtitle: Text(_endDate.toString().split(' ')[0]),
+                  trailing: const Icon(Icons.calendar_today),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _endDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setState(() => _endDate = picked);
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

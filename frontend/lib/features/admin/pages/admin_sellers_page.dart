@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:swipify/services/admin_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:swipify/core/utils/responsive_helper.dart';
 
 class AdminSellersPage extends StatefulWidget {
   const AdminSellersPage({super.key});
@@ -140,52 +141,67 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Row(
+          padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(Icons.storefront, size: 28, color: Colors.deepPurple),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Seller Applications',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _statusFilter,
-                    items: const [
-                      DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                      DropdownMenuItem(value: 'approved', child: Text('Approved')),
-                      DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _statusFilter = value);
-                        _loadApplications();
-                      }
-                    },
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.storefront, size: 28, color: Colors.deepPurple),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Seller Applications',
+                    style: TextStyle(
+                      fontSize: isMobile ? 20 : 24, 
+                      fontWeight: FontWeight.bold
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _loadApplications,
-                tooltip: 'Refresh',
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _statusFilter,
+                        items: const [
+                          DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                          DropdownMenuItem(value: 'approved', child: Text('Approved')),
+                          DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _statusFilter = value);
+                            _loadApplications();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadApplications,
+                    tooltip: 'Refresh',
+                  ),
+                ],
               ),
             ],
           ),
@@ -267,9 +283,14 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
     final sellerType = app['sellerType'] ?? app['seller_type'] ?? 'N/A';
     final createdAt = app['created_at'] ?? '';
 
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-      elevation: 2,
+      margin: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 24, 
+        vertical: 6
+      ),
+      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -279,15 +300,16 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: isPending ? Colors.amber.shade50 : Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.store,
                   color: isPending ? Colors.amber.shade700 : Colors.blue.shade700,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: 16),
@@ -297,21 +319,21 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
                   children: [
                     Text(
                       storeName, 
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       'Type: $sellerType', 
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (createdAt.isNotEmpty)
                       Text(
                         'Applied: ${_formatDate(createdAt)}', 
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -319,73 +341,88 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(app['status']).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      statusString.toUpperCase(),
-                      style: TextStyle(
-                        color: _getStatusColor(app['status']),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
+              if (isMobile)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _buildStatusTag(app['status']),
+                    if (isPending)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: _buildQuickActions(app, iconSize: 18),
                       ),
-                    ),
-                  ),
-                  if (isPending)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () => _showQuickRejectDialog(app),
-                            icon: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close, color: Colors.red, size: 18),
-                            ),
-                            tooltip: 'Quick Reject',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(width: 12),
-                          IconButton(
-                            onPressed: () => _showQuickApproveDialog(app),
-                            icon: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade50,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.check, color: Colors.green, size: 18),
-                            ),
-                            tooltip: 'Quick Approve',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8.0),
-                      child: Icon(Icons.chevron_right, color: Colors.grey, size: 16),
-                    ),
-                ],
-              ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    _buildStatusTag(app['status']),
+                    const SizedBox(width: 16),
+                    if (isPending)
+                      _buildQuickActions(app, iconSize: 20)
+                    else
+                      const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+                  ],
+                ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStatusTag(String? status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getStatusColor(status).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        (status ?? 'pending').toUpperCase(),
+        style: TextStyle(
+          color: _getStatusColor(status),
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(dynamic app, {double iconSize = 20}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: () => _showQuickRejectDialog(app),
+          icon: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.close, color: Colors.red, size: iconSize),
+          ),
+          tooltip: 'Quick Reject',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+        const SizedBox(width: 12),
+        IconButton(
+          onPressed: () => _showQuickApproveDialog(app),
+          icon: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.check, color: Colors.green, size: iconSize),
+          ),
+          tooltip: 'Quick Approve',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ],
     );
   }
 
@@ -587,27 +624,32 @@ class _DeepDiveModalState extends State<_DeepDiveModal> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = ResponsiveHelper.isMobile(context);
     final currentStatus = _detail?['status'] ?? widget.initialData['status'] ?? '';
     final isPending = currentStatus == 'pending';
     final storeName = _detail?['storeName'] ?? _detail?['store_name'] ?? widget.initialData['storeName'] ?? 'Unknown Store';
 
     return Dialog(
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 40, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 750),
+        constraints: BoxConstraints(
+          maxWidth: 600, 
+          maxHeight: MediaQuery.of(context).size.height * 0.85
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.deepPurple.shade50,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.storefront, color: Colors.deepPurple.shade700, size: 28),
+                  Icon(Icons.storefront, color: Colors.deepPurple.shade700, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -615,16 +657,16 @@ class _DeepDiveModalState extends State<_DeepDiveModal> {
                       children: [
                         Text(
                           storeName, 
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        Text('Application ID: ${widget.appId}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        Text('Application ID: ${widget.appId}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],

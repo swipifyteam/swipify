@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/services/admin_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:swipify/core/utils/responsive_helper.dart';
 import 'package:swipify/features/admin/pages/admin_users_page.dart';
 import 'package:swipify/features/admin/pages/admin_sellers_page.dart';
 import 'package:swipify/features/admin/pages/admin_products_page.dart';
@@ -114,25 +115,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           // KPI Cards Grid - Consolidated into 2 rows on large screens
           LayoutBuilder(
             builder: (context, constraints) {
-              int crossAxisCount = 6;
-              double childAspectRatio = 1.3;
-              
-              if (constraints.maxWidth < 1400) {
-                crossAxisCount = 4;
-                childAspectRatio = 1.4;
-              }
-              if (constraints.maxWidth < 1100) {
-                crossAxisCount = 3;
-                childAspectRatio = 1.5;
-              }
-              if (constraints.maxWidth < 800) {
-                crossAxisCount = 2;
-                childAspectRatio = 1.6;
-              }
-              if (constraints.maxWidth < 500) {
-                crossAxisCount = 1;
-                childAspectRatio = 2.0;
-              }
+              int crossAxisCount = ResponsiveHelper.getCrossAxisCount(
+                context,
+                mobile: 1,
+                tablet: 2,
+                desktop: 4,
+              );
+              final bool isMobile = ResponsiveHelper.isMobile(context);
+              final bool isTablet = ResponsiveHelper.isTablet(context);
+              double childAspectRatio = isMobile ? 2.0 : (isTablet ? 1.6 : 1.4);
+              if (constraints.maxWidth > 1400) crossAxisCount = 6;
               
               return GridView.count(
                 shrinkWrap: true,
@@ -343,12 +335,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = MediaQuery.of(context).size.width < 1000;
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    final bool isTablet = ResponsiveHelper.isTablet(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      drawer: isMobile ? _buildSidebar(isDrawer: true) : null,
-      appBar: isMobile 
+      drawer: (isMobile || isTablet) ? Drawer(child: _buildSidebar(isDrawer: true)) : null,
+      appBar: (isMobile || isTablet)
         ? AppBar(
             backgroundColor: Colors.white,
             elevation: 0,
@@ -379,14 +372,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: Row(
         children: [
           // Sidebar (Desktop)
-          if (!isMobile) _buildSidebar(isDrawer: false),
+          if (!isMobile && !isTablet) _buildSidebar(isDrawer: false),
           
           // Main Content Area
           Expanded(
             child: Column(
               children: [
                 // Top App Bar (Desktop only)
-                if (!isMobile)
+                if (!isMobile && !isTablet)
                   Container(
                     height: 70,
                     color: Colors.white,
@@ -413,7 +406,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ],
                     ),
                   ),
-                if (!isMobile) const Divider(height: 1),
+                if (!isMobile && !isTablet) const Divider(height: 1),
                 
                 // Content
                 Expanded(
@@ -431,10 +424,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Container(
       width: 250,
       color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
             padding: const EdgeInsets.all(24.0),
             child: Row(
               children: [
@@ -495,7 +489,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             },
           ),
           const SizedBox(height: 16),
-        ],
+          ],
+        ),
       ),
     );
   }
