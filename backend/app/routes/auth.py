@@ -165,3 +165,62 @@ async def signup(request: SignupRequest):
     except Exception as e:
         logger.error(f"Error in signup: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class SocialLoginRequest(BaseModel):
+    id_token: str
+
+@router.post("/social-login")
+async def social_login(request: SocialLoginRequest):
+    """
+    Verify a Firebase ID token from a social login (Google/Facebook).
+    Creates the user document in Firestore if it doesn't exist.
+    Returns the user profile.
+    """
+    try:
+        # 1. Verify the Firebase ID token
+        decoded_token = firebase_auth.verify_id_token(request.id_token)
+        uid = decoded_token['uid']
+        email = decoded_token.get('email', '')
+        name = decoded_token.get('name', '')
+        picture = decoded_token.get('picture', '')
+        provider = decoded_token.get('firebase', {}).get('sign_in_provider', 'unknown')
+
+        logger.info(f"[SOCIAL LOGIN] Verified token for UID: {uid}, provider: {provider}")
+
+        # 2. Check if user document already exists
+        user_ref = db.collection("users").document(uid)
+        user_doc = user_ref.get()
+
+        if user_doc.exists:
+            logger.info(f"[SOCIAL LOGIN] User {uid} already exists, returning profile")
+            user_data = user_doc.to_dict()
+            user_data['uid'] = uid
+            return {"status": "ok", "user": user_data, "is_new": False}
+
+        # 3. Create new user document for first-time social login
+        user_data = {
+            "name": name,
+            "email": email,
+            "photo_url": picture,
+            "role": "buyer",
+            "provider": provider,
+            "created_at": SERVER_TIMESTAMP,
+            "updated_at": SERVER_TIMESTAMP,
+            "email_verified": bool(email),
+            "seller_status": "NONE",
+        }
+        user_ref.set(user_data)
+        logger.info(f"[SOCIAL LOGIN] Created new user document for UID: {uid}")
+
+        user_data['uid'] = uid
+        return {"status": "ok", "user": user_data, "is_new": True}
+
+    except ValueError as e:
+        logger.warning(f"[SOCIAL LOGIN] Invalid token: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid or expired ID token")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[SOCIAL LOGIN] Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

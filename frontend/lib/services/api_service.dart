@@ -109,6 +109,23 @@ class ApiService {
     }
   }
 
+  // ── Social Login Verification ────────────────────────────────────────────
+
+  /// Verify a social login (Google/Facebook) by sending the Firebase ID token
+  /// to the backend. The backend verifies the token and creates the user
+  /// document if it doesn't exist.
+  static Future<Map<String, dynamic>> verifySocialLogin(String idToken) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/social-login'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'id_token': idToken}),
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return json.decode(response.body);
+    }
+    throw Exception('Social login verification failed: ${response.statusCode}');
+  }
+
   // ── Users ────────────────────────────────────────────────────────────────
 
   /// Fetch user document for sync

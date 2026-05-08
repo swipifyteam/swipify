@@ -6,6 +6,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:swipify/core/models/app_user.dart';
 import 'package:swipify/core/utils/phone_utils.dart';
 import 'package:swipify/services/api_service.dart';
@@ -268,29 +269,36 @@ class AuthProvider extends ChangeNotifier {
         final firebaseUser = userCred.user;
 
         if (firebaseUser != null) {
-          debugPrint('[AUTH] Login success: ${firebaseUser.uid}');
-          // Navigation happens in UI, but we signal ready by setting state
+          debugPrint('[AUTH] Facebook web login success: ${firebaseUser.uid}');
+          await _ensureUserDocument(firebaseUser);
           await _onAuthStateChanged(firebaseUser);
           return _user;
         } else {
           return null;
         }
       } else {
-        // Native SDK result handling...
-        final facebookAuth = _getFacebookAuthInstance();
-        if (facebookAuth == null) throw Exception('Facebook Auth SDK missing');
+        // Native SDK — use flutter_facebook_auth directly
+        debugPrint('[AUTH] Starting native Facebook login...');
+        final LoginResult result = await FacebookAuth.instance.login(
+          permissions: ['email', 'public_profile'],
+        );
 
-        final result = await facebookAuth.login();
-        if (result.status.toString() == 'LoginStatus.success' &&
-            result.accessToken != null) {
+        if (result.status == LoginStatus.success && result.accessToken != null) {
+          debugPrint('[AUTH] Facebook native login success, exchanging credential...');
           final credential = FacebookAuthProvider.credential(
             result.accessToken!.tokenString,
           );
           final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
-          await _onAuthStateChanged(userCred.user);
+          if (userCred.user != null) {
+            await _ensureUserDocument(userCred.user!);
+            await _onAuthStateChanged(userCred.user);
+          }
           return _user;
+        } else if (result.status == LoginStatus.cancelled) {
+          debugPrint('[AUTH] Facebook login cancelled by user');
+          return null;
         } else {
-          throw Exception('Facebook login failed: ${result.status}');
+          throw Exception('Facebook login failed: ${result.status} - ${result.message}');
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -340,10 +348,13 @@ class AuthProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId:
-            '663414398790-aud6n3kviito1nlqenbhhu9b5ufmvn0c.apps.googleusercontent.com',
-      );
+      // On Android, GoogleSignIn uses google-services.json + SHA-1 fingerprint.
+      // Only pass clientId on web where it's required.
+      final GoogleSignIn googleSignIn = kIsWeb
+          ? GoogleSignIn(
+              clientId: '663414398790-aud6n3kviito1nlqenbhhu9b5ufmvn0c.apps.googleusercontent.com',
+            )
+          : GoogleSignIn();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
@@ -362,6 +373,7 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('[AUTH] Google sign-in success: ${userCred.user?.uid}');
       
       if (userCred.user != null) {
+        await _ensureUserDocument(userCred.user!);
         await _onAuthStateChanged(userCred.user);
         return _user;
       }
@@ -370,12 +382,12 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('[AUTH] Google FirebaseAuthException: ${e.code}');
       _error = _mapAuthError(e.code);
       notifyListeners();
-      rethrow;
+      return null;
     } catch (e) {
       debugPrint('[AUTH] Google login error: $e');
       _error = 'Google login failed. Please try again.';
       notifyListeners();
-      rethrow;
+      return null;
     } finally {
       _setLoading(false);
     }
@@ -778,14 +790,20 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
   }
 
-  /// Returns null on web (flutter_facebook_auth SDK not used on web)
-  dynamic _getFacebookAuthInstance() {
+  /// Ensures a user document exists in the backend for social login users.
+  /// Calls the backend social-login endpoint which verifies the Firebase token
+  /// and creates the user document if it doesn't exist.
+  Future<void> _ensureUserDocument(User firebaseUser) async {
     try {
-      // flutter_facebook_auth is only used on native
-      // import is done at runtime to avoid web build issues
-      return null; // Override at native layer
-    } catch (_) {
-      return null;
+      debugPrint('[AUTH] Ensuring user document exists for: ${firebaseUser.uid}');
+      final idToken = await firebaseUser.getIdToken();
+      if (idToken != null) {
+        await ApiService.verifySocialLogin(idToken);
+        debugPrint('[AUTH] User document verified/created via backend');
+      }
+    } catch (e) {
+      // Non-fatal — the user doc might already exist or will be lazily created
+      debugPrint('[AUTH] _ensureUserDocument warning (non-fatal): $e');
     }
   }
 

@@ -70,6 +70,44 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    final auth = context.read<AuthProvider>();
+    try {
+      final user = await auth.loginWithGoogle();
+      if (mounted && user != null) {
+        if (user.isAdmin) {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const MainNavScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) _showError(auth.error ?? "Google login failed");
+    }
+  }
+
+  Future<void> _handleFacebookLogin() async {
+    final auth = context.read<AuthProvider>();
+    try {
+      final user = await auth.loginWithFacebook();
+      if (mounted && user != null) {
+        if (user.isAdmin) {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const MainNavScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) _showError(auth.error ?? "Facebook login failed");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
@@ -190,14 +228,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 "Continue with Google", 
                 Icons.g_mobiledata, 
                 const Color(0xFFDB4437), 
-                () => auth.loginWithGoogle()
+                auth.isLoading ? null : _handleGoogleLogin,
               ),
               const SizedBox(height: 16),
               _buildSocialButton(
                 "Continue with Facebook", 
                 Icons.facebook, 
                 const Color(0xFF4267B2), 
-                () => auth.loginWithFacebook()
+                auth.isLoading ? null : _handleFacebookLogin,
               ),
               
               const SizedBox(height: 32),
@@ -265,7 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
      );
   }
 
-  Widget _buildSocialButton(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildSocialButton(String label, IconData icon, Color color, VoidCallback? onTap) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
