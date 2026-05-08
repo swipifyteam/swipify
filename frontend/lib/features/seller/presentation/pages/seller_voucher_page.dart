@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:swipify/features/seller/service/seller_vouchers_provider.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
-import 'package:swipify/models/seller_voucher_model.dart';
+import 'package:swipify/models/voucher_model.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:intl/intl.dart';
 
@@ -72,7 +72,7 @@ class _SellerVoucherPageState extends State<SellerVoucherPage> {
     );
   }
 
-  Widget _buildVoucherList(List<SellerVoucherModel> vouchers) {
+  Widget _buildVoucherList(List<VoucherModel> vouchers) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: vouchers.length,
@@ -82,7 +82,7 @@ class _SellerVoucherPageState extends State<SellerVoucherPage> {
     );
   }
 
-  void _showVoucherDialog(BuildContext context, {SellerVoucherModel? voucher}) {
+  void _showVoucherDialog(BuildContext context, {VoucherModel? voucher}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -93,7 +93,7 @@ class _SellerVoucherPageState extends State<SellerVoucherPage> {
 }
 
 class VoucherCard extends StatelessWidget {
-  final SellerVoucherModel voucher;
+  final VoucherModel voucher;
 
   const VoucherCard({super.key, required this.voucher});
 
@@ -141,14 +141,40 @@ class VoucherCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        voucher.discountType == 'percentage'
-                            ? '${voucher.discountValue.toInt()}% OFF'
-                            : '₱${voucher.discountValue.toInt()} OFF',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        voucher.title,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            voucher.discountLabel,
+                            style: TextStyle(
+                              fontSize: 20, 
+                              fontWeight: FontWeight.w900, 
+                              color: SwipifyTheme.primaryColor,
+                              letterSpacing: -0.5
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              voucher.discountTarget,
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Min. Spend: ₱${voucher.minOrderAmount}',
+                        'Min. Spend: ₱${voucher.minimumSpend}',
                         style: TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                       const Divider(height: 24),
@@ -165,34 +191,38 @@ class VoucherCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Column(
-                  children: [
-                    Stack(
-                      alignment: Alignment.center,
+                    Column(
                       children: [
-                        SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: CircularProgressIndicator(
-                            value: voucher.usageLimit > 0 ? voucher.usedCount / voucher.usageLimit : 0,
-                            strokeWidth: 4,
-                            backgroundColor: Colors.grey[200],
-                            color: SwipifyTheme.primaryColor,
-                          ),
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: CircularProgressIndicator(
+                                value: voucher.usageLimit > 0 ? voucher.claimedCount / voucher.usageLimit : 0,
+                                strokeWidth: 4,
+                                backgroundColor: Colors.grey[200],
+                                color: SwipifyTheme.primaryColor,
+                              ),
+                            ),
+                            Text(
+                              voucher.usageLimit > 0 ? '${((voucher.claimedCount / voucher.usageLimit) * 100).toInt()}%' : '0%',
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'CLAIMED',
+                          style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey),
                         ),
                         Text(
-                          voucher.usageLimit > 0 ? '${((voucher.usedCount / voucher.usageLimit) * 100).toInt()}%' : '0%',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                          '${voucher.claimedCount}/${voucher.usageLimit}',
+                          style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${voucher.usedCount}/${voucher.usageLimit}',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -295,7 +325,7 @@ class StatusBadge extends StatelessWidget {
 }
 
 class VoucherFormDialog extends StatefulWidget {
-  final SellerVoucherModel? voucher;
+  final VoucherModel? voucher;
 
   const VoucherFormDialog({super.key, this.voucher});
 
@@ -306,10 +336,13 @@ class VoucherFormDialog extends StatefulWidget {
 class _VoucherFormDialogState extends State<VoucherFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _codeController;
+  late TextEditingController _titleController;
+  late TextEditingController _descriptionController;
   late TextEditingController _valueController;
   late TextEditingController _minOrderController;
   late TextEditingController _limitController;
   late String _discountType;
+  late String _discountTarget;
   late DateTime _expiryDate;
   late bool _isActive;
 
@@ -318,10 +351,13 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
     super.initState();
     final v = widget.voucher;
     _codeController = TextEditingController(text: v?.code ?? '');
+    _titleController = TextEditingController(text: v?.title ?? '');
+    _descriptionController = TextEditingController(text: v?.description ?? '');
     _valueController = TextEditingController(text: v?.discountValue.toString() ?? '');
-    _minOrderController = TextEditingController(text: v?.minOrderAmount.toString() ?? '0');
+    _minOrderController = TextEditingController(text: v?.minimumSpend.toString() ?? '0');
     _limitController = TextEditingController(text: v?.usageLimit.toString() ?? '100');
     _discountType = v?.discountType ?? 'percentage';
+    _discountTarget = v?.discountTarget ?? 'SUBTOTAL';
     _expiryDate = v != null ? v.endDate : DateTime.now().add(const Duration(days: 30));
     _isActive = v?.isActive ?? true;
   }
@@ -359,14 +395,35 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
                 validator: (v) => v == null || v.isEmpty ? "Required" : null,
               ),
               const SizedBox(height: 16),
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: "Title", hintText: "e.g. 10% Off Summer Sale"),
+                validator: (v) => v == null || v.isEmpty ? "Required" : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: "Description", hintText: "e.g. Valid for all summer collection"),
+              ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                initialValue: _discountType,
+                value: _discountType,
                 decoration: const InputDecoration(labelText: "Discount Type"),
                 items: const [
                   DropdownMenuItem(value: "percentage", child: Text("Percentage (%)")),
                   DropdownMenuItem(value: "fixed", child: Text("Fixed Amount (₱)")),
                 ],
                 onChanged: (val) => setState(() => _discountType = val!),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _discountTarget,
+                decoration: const InputDecoration(labelText: "Discount Target"),
+                items: const [
+                  DropdownMenuItem(value: "SUBTOTAL", child: Text("Subtotal (Shop)")),
+                  DropdownMenuItem(value: "SHIPPING", child: Text("Shipping Fee")),
+                ],
+                onChanged: (val) => setState(() => _discountTarget = val!),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -431,10 +488,14 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
     final data = {
       'seller_id': sellerId,
       'code': _codeController.text,
+      'title': _titleController.text,
+      'description': _descriptionController.text,
       'discount_type': _discountType,
+      'discount_target': _discountTarget,
       'discount_value': double.parse(_valueController.text),
-      'min_order_amount': double.parse(_minOrderController.text),
+      'minimum_spend': double.parse(_minOrderController.text),
       'usage_limit': int.parse(_limitController.text),
+      'remaining_quantity': int.parse(_limitController.text), // initially same as limit
       'end_date': _expiryDate.toIso8601String(),
       'is_active': _isActive,
     };

@@ -9,11 +9,11 @@ import 'package:swipify/models/product_model.dart';
 
 import 'package:swipify/models/cart_item_model.dart';
 import 'package:swipify/models/notification_model.dart';
-import 'package:swipify/models/seller_voucher_model.dart';
 import 'package:swipify/models/user_model.dart';
 import 'package:swipify/models/review_model.dart';
 import 'dart:io' show Platform;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:swipify/models/voucher_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiService {
@@ -337,43 +337,33 @@ class ApiService {
   // ── Vouchers ─────────────────────────────────────────────────────────────
 
   /// Fetch all available vouchers across the platform.
-  static Future<List<SellerVoucherModel>> getVouchers() async {
+  static Future<List<VoucherModel>> getVouchers({String? userId}) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/vouchers'));
+      final path = userId != null ? '/vouchers?user_id=$userId' : '/vouchers';
+      final response = await http.get(Uri.parse('$baseUrl$path'));
       if (response.statusCode == 200) {
-        final dynamic decodedBody = json.decode(response.body);
-
-        List<dynamic> list;
-        if (decodedBody is List) {
-          list = decodedBody;
-        } else if (decodedBody is Map && decodedBody.containsKey('vouchers') && decodedBody['vouchers'] is List) {
-          list = decodedBody['vouchers'] as List<dynamic>;
-        } else {
-          return [];
-        }
-        return list.map((v) => SellerVoucherModel.fromJson(v)).toList();
+        final List<dynamic> list = json.decode(response.body);
+        return list.map((v) => VoucherModel.fromJson(v)).toList();
       }
       throw Exception('Failed to load vouchers: ${response.statusCode}');
     } catch (e) {
       debugPrint('ApiService: getVouchers error: $e');
-      rethrow;
+      return [];
     }
   }
 
-  /// Claim a voucher for a user. Throws an exception on duplicate claim.
-  static Future<String> claimVoucher(String userId, String voucherId) async {
+  /// Claim a voucher for a user.
+  static Future<Map<String, dynamic>> claimVoucher(String userId, String voucherId) async {
     final response = await http.post(
       Uri.parse('$baseUrl/vouchers/claim'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'user_id': userId, 'voucher_id': voucherId}),
     );
+    final data = json.decode(response.body);
     if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return data['message'];
+      return data;
     }
-    // Return error message for display in UI
-    final error = json.decode(response.body);
-    throw Exception(error['detail'] ?? 'Failed to claim voucher');
+    throw Exception(data['detail'] ?? 'Failed to claim voucher');
   }
 
   // ── Notifications ─────────────────────────────────────────────────────────
@@ -655,7 +645,7 @@ class ApiService {
     // Let's check it again.
     final response = await http.put(
       Uri.parse('$baseUrl/seller/products/$productId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: await getHeaders(),
       body: json.encode(data),
     );
     if (response.statusCode != 200) {
@@ -665,7 +655,10 @@ class ApiService {
 
   /// Delete a seller product
   static Future<void> deleteSellerProduct(String productId) async {
-    final response = await http.delete(Uri.parse('$baseUrl/seller/products/$productId'));
+    final response = await http.delete(
+      Uri.parse('$baseUrl/seller/products/$productId'),
+      headers: await getHeaders(),
+    );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete product: ${response.body}');
     }
@@ -755,31 +748,31 @@ class ApiService {
   // ── Seller Vouchers ────────────────────────────────────────────────────────
 
   /// Create a new voucher for a seller.
-  static Future<SellerVoucherModel> createVoucher(Map<String, dynamic> data) async {
+  static Future<VoucherModel> createVoucher(Map<String, dynamic> data) async {
     final response = await http.post(
       Uri.parse('$baseUrl/seller/vouchers'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode(data),
     );
     if (response.statusCode == 200) {
-      return SellerVoucherModel.fromJson(json.decode(response.body));
+      return VoucherModel.fromJson(json.decode(response.body));
     }
     final error = json.decode(response.body);
     throw Exception(error['detail'] ?? 'Failed to create voucher');
   }
 
   /// Fetch all vouchers for a specific seller.
-  static Future<List<SellerVoucherModel>> getSellerVouchers(String sellerId) async {
+  static Future<List<VoucherModel>> getSellerVouchers(String sellerId) async {
     final response = await http.get(Uri.parse('$baseUrl/seller/vouchers/$sellerId'));
     if (response.statusCode == 200) {
       final List<dynamic> list = json.decode(response.body);
-      return list.map((v) => SellerVoucherModel.fromJson(v)).toList();
+      return list.map((v) => VoucherModel.fromJson(v)).toList();
     }
     throw Exception('Failed to load seller vouchers');
   }
 
   /// Fetch all available and valid vouchers for a checkout session.
-  static Future<List<SellerVoucherModel>> getAvailableVouchers({
+  static Future<List<VoucherModel>> getAvailableVouchers({
     required String userId,
     required List<String> sellerIds,
     required Map<String, double> cartTotals,
@@ -794,30 +787,22 @@ class ApiService {
       }),
     );
     if (response.statusCode == 200) {
-      final dynamic decodedBody = json.decode(response.body);
-
-      List<dynamic> list;
-      if (decodedBody is List) {
-        list = decodedBody;
-      } else if (decodedBody is Map && decodedBody.containsKey('vouchers') && decodedBody['vouchers'] is List) {
-        list = decodedBody['vouchers'] as List<dynamic>;
-      } else {
-        return [];
-      }
-      return list.map((v) => SellerVoucherModel.fromJson(v)).toList();
+      final data = json.decode(response.body);
+      final List<dynamic> list = data['vouchers'] ?? [];
+      return list.map((v) => VoucherModel.fromJson(v)).toList();
     }
     throw Exception('Failed to load available vouchers');
   }
 
   /// Update an existing voucher.
-  static Future<SellerVoucherModel> updateVoucher(String voucherId, Map<String, dynamic> updateData) async {
+  static Future<VoucherModel> updateVoucher(String voucherId, Map<String, dynamic> updateData) async {
     final response = await http.put(
       Uri.parse('$baseUrl/seller/vouchers/$voucherId'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode(updateData),
     );
     if (response.statusCode == 200) {
-      return SellerVoucherModel.fromJson(json.decode(response.body));
+      return VoucherModel.fromJson(json.decode(response.body));
     }
     throw Exception('Failed to update voucher');
   }
@@ -835,6 +820,7 @@ class ApiService {
   /// Apply a seller voucher to a cart subtotal.
   /// Apply a voucher to a cart subtotal.
   static Future<VoucherApplyResult> applyVoucher({
+    required String userId,
     required String voucherCode,
     required double cartTotal,
     required String sellerId,
@@ -844,6 +830,7 @@ class ApiService {
       Uri.parse('$baseUrl/vouchers/apply-voucher'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
+        'user_id': userId,
         'seller_id': sellerId,
         'voucher_code': voucherCode,
         'cart_total': cartTotal,

@@ -249,7 +249,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // ─── Component Builders ─────────────────────────────────────────────────────
 
   Widget _buildHeroSection(ProductModel p) {
-    final media = p.media.isNotEmpty ? p.media : [ProductMedia(type: 'image', url: p.primaryImage)];
+    // Ensure we have at least one media item, detecting type if needed
+    List<ProductMedia> media = p.media;
+    if (media.isEmpty) {
+      final url = p.primaryImage;
+      final isVideo = url.toLowerCase().contains('.mp4') || 
+                      url.toLowerCase().contains('.mov') || 
+                      url.toLowerCase().contains('.avi');
+      media = [ProductMedia(type: isVideo ? 'video' : 'image', url: url, thumbnailUrl: p.thumbnailUrl)];
+    }
     
     return Container(
       height: 420,

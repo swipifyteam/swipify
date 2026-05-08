@@ -8,11 +8,8 @@ import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
 import 'package:swipify/services/api_service.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:swipify/models/product_model.dart';
-import 'package:video_player/video_player.dart';
-import 'package:video_compress/video_compress.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:swipify/features/seller/presentation/widgets/media_preview_widget.dart';
 
 class EditProductPage extends StatefulWidget {
   final ProductModel product;
@@ -33,12 +30,9 @@ class _EditProductPageState extends State<EditProductPage> {
 
   // Media State
   List<ProductMedia> _existingMedia = [];
-  final List<XFile> _newImageFiles = [];
-  XFile? _newVideoFile;
-  VideoPlayerController? _videoController;
+  final List<PlatformFile> _newMedia = [];
   
   bool _isUpdating = false;
-  final ImagePicker _picker = ImagePicker();
 
   static const _categories = [
     'Electronics', 'Clothing', 'Footwear', 'Accessories',
@@ -77,43 +71,29 @@ class _EditProductPageState extends State<EditProductPage> {
 
   // ── Media Methods ─────────────────────────────────────────────────────────
 
-  Future<void> _pickImages() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked.isNotEmpty) {
-      setState(() => _newImageFiles.addAll(picked));
-    }
-  }
-
-  Future<void> _pickVideo() async {
+  Future<void> _pickMedia() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['mp4', 'mov', 'avi', 'mkv', 'wmv'],
-      allowMultiple: false,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'mp4', 'mov', 'avi'],
+      allowMultiple: true,
     );
-    
+
     if (result != null) {
-      final file = result.files.single;
-      final pickedFile = XFile(file.path ?? '');
       setState(() {
-        _newVideoFile = pickedFile;
-        _videoController?.dispose();
-        if (kIsWeb) {
-          _videoController = VideoPlayerController.networkUrl(Uri.parse(file.path ?? ''))
-            ..initialize().then((_) => setState(() {}));
-        } else {
-          _videoController = VideoPlayerController.file(File(file.path!))
-            ..initialize().then((_) => setState(() {}));
-        }
+        _newMedia.addAll(result.files);
       });
     }
   }
 
-  void _removeNewVideo() {
+  void _removeNewMedia(int index) {
     setState(() {
-      _newVideoFile = null;
-      _videoController?.dispose();
-      _videoController = null;
+      _newMedia.removeAt(index);
     });
+  }
+
+  bool _isVideo(PlatformFile file) {
+    final ext = file.extension?.toLowerCase() ?? '';
+    return ['mp4', 'mov', 'avi', 'mkv', 'wmv'].contains(ext);
   }
 
   // ── Submit Logic ──────────────────────────────────────────────────────────
@@ -135,39 +115,25 @@ class _EditProductPageState extends State<EditProductPage> {
     try {
       List<Map<String, dynamic>> finalMedia = _existingMedia.map((m) => m.toJson()).toList();
 
-      // 1. Upload New Video if any
-      if (_newVideoFile != null) {
-        List<int> videoBytes;
-        
-        if (kIsWeb) {
-          videoBytes = await _newVideoFile!.readAsBytes();
+      // 1. Upload New Media
+      for (var file in _newMedia) {
+        final isVid = _isVideo(file);
+        final fileName = file.name;
+        final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
+
+        if (bytes == null) continue;
+
+        if (isVid) {
+          final videoData = await ApiService.uploadProductVideo(bytes, fileName, userId);
+          finalMedia.add({
+            'type': 'video',
+            'url': videoData['video_url'],
+            'thumbnail_url': videoData['thumbnail_url'],
+          });
         } else {
-          MediaInfo? info = await VideoCompress.compressVideo(
-            _newVideoFile!.path,
-            quality: VideoQuality.MediumQuality,
-            deleteOrigin: false,
-          );
-          
-          File videoToUpload = info?.file ?? File(_newVideoFile!.path);
-          videoBytes = await videoToUpload.readAsBytes();
+          final url = await ApiService.uploadProductImage(bytes, fileName, userId);
+          finalMedia.add({'type': 'image', 'url': url});
         }
-
-        final videoData = await ApiService.uploadProductVideo(videoBytes, _newVideoFile!.name, userId);
-        
-        finalMedia.add({
-          'type': 'video',
-          'url': videoData['video_url'],
-          'thumbnail_url': videoData['thumbnail_url'],
-        });
-      }
-
-      // 2. Upload New Images if any
-      for (var file in _newImageFiles) {
-        final bytes = await file.readAsBytes();
-        final url = await ApiService.uploadSellerDocument(
-          userId, 'product_image', bytes, file.name, 'image/jpeg'
-        );
-        finalMedia.add({'type': 'image', 'url': url});
       }
 
       final data = {
@@ -218,23 +184,26 @@ class _EditProductPageState extends State<EditProductPage> {
                   const SizedBox(height: 12),
                   SizedBox(
                     height: 120,
-                    child: ListView(
+                    child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      children: [
-                        // Add buttons
-                        _buildAddMediaButton(icon: Icons.add_a_photo, label: 'Add Images', onTap: _pickImages),
-                        if (_newVideoFile == null && !_existingMedia.any((m) => m.type == 'video'))
-                          _buildAddMediaButton(icon: Icons.video_call, label: 'Add Video', onTap: _pickVideo),
-
-                        // Existing Media
-                        ..._existingMedia.map((m) => _buildExistingMediaPreview(m)),
+                      itemCount: _existingMedia.length + _newMedia.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return _buildAddMediaButton(
+                            icon: Icons.add_to_photos,
+                            label: 'Add Media',
+                            onTap: _pickMedia,
+                          );
+                        }
                         
-                        // New Video
-                        if (_newVideoFile != null) _buildNewVideoPreview(),
-
-                        // New Images
-                        ..._newImageFiles.map((f) => _buildNewImagePreview(f)),
-                      ],
+                        int realIndex = index - 1;
+                        if (realIndex < _existingMedia.length) {
+                          return _buildExistingMediaPreview(_existingMedia[realIndex]);
+                        } else {
+                          int newMediaIndex = realIndex - _existingMedia.length;
+                          return _buildNewMediaPreview(_newMedia[newMediaIndex], newMediaIndex);
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -313,7 +282,10 @@ class _EditProductPageState extends State<EditProductPage> {
     return Container(
       width: 100, margin: const EdgeInsets.only(right: 12),
       child: Stack(children: [
-        ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(media.thumbnailUrl ?? media.url, width: 100, height: 120, fit: BoxFit.cover)),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12), 
+          child: MediaPreviewWidget(url: media.url, isVideo: media.type == 'video'),
+        ),
         if (media.type == 'video') const Center(child: Icon(Icons.play_circle, color: Colors.white70, size: 30)),
         Positioned(top: 4, right: 4, child: GestureDetector(
           onTap: () => setState(() => _existingMedia.remove(media)),
@@ -323,27 +295,25 @@ class _EditProductPageState extends State<EditProductPage> {
     );
   }
 
-  Widget _buildNewImagePreview(XFile file) {
+  Widget _buildNewMediaPreview(PlatformFile file, int index) {
+    final isVid = _isVideo(file);
     return Container(
       width: 100, margin: const EdgeInsets.only(right: 12),
       child: Stack(children: [
-        ClipRRect(borderRadius: BorderRadius.circular(12), child: kIsWeb ? Image.network(file.path, width: 100, height: 120, fit: BoxFit.cover) : Image.file(File(file.path), width: 100, height: 120, fit: BoxFit.cover)),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12), 
+          child: Container(
+            color: Colors.black12,
+            child: MediaPreviewWidget(
+              path: file.path,
+              bytes: file.bytes,
+              isVideo: isVid,
+            ),
+          ),
+        ),
+        if (isVid) const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
         Positioned(top: 4, right: 4, child: GestureDetector(
-          onTap: () => setState(() => _newImageFiles.remove(file)),
-          child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: const Icon(Icons.close, size: 16, color: Colors.white)),
-        )),
-      ]),
-    );
-  }
-
-  Widget _buildNewVideoPreview() {
-    return Container(
-      width: 100, margin: const EdgeInsets.only(right: 12),
-      child: Stack(children: [
-        ClipRRect(borderRadius: BorderRadius.circular(12), child: Container(color: Colors.black12, child: _videoController?.value.isInitialized ?? false ? AspectRatio(aspectRatio: 100/120, child: VideoPlayer(_videoController!)) : null)),
-        const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
-        Positioned(top: 4, right: 4, child: GestureDetector(
-          onTap: _removeNewVideo,
+          onTap: () => _removeNewMedia(index),
           child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: const Icon(Icons.close, size: 16, color: Colors.white)),
         )),
       ]),

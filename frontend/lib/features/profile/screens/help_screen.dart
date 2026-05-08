@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' as io;
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/services/support_service.dart';
@@ -23,7 +23,7 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
   String _selectedCategory = 'Account & Verification';
   final _subjectController = TextEditingController();
   final _messageController = TextEditingController();
-  final List<XFile> _images = [];
+  final List<PlatformFile> _images = [];
   bool _isSubmitting = false;
 
   final List<String> _categories = [
@@ -57,12 +57,15 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
       return;
     }
 
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+    );
 
-    if (pickedFile != null) {
+    if (result != null) {
       setState(() {
-        _images.add(pickedFile);
+        final remaining = 3 - _images.length;
+        _images.addAll(result.files.take(remaining));
       });
     }
   }
@@ -257,12 +260,12 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
                         height: 80,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          image: DecorationImage(
-                            image: kIsWeb 
-                              ? NetworkImage(entry.value.path) as ImageProvider
-                              : FileImage(io.File(entry.value.path)), 
-                            fit: BoxFit.cover
-                          ),
+                            image: DecorationImage(
+                              image: (kIsWeb || entry.value.bytes != null)
+                                ? MemoryImage(entry.value.bytes!) as ImageProvider
+                                : FileImage(io.File(entry.value.path!)), 
+                              fit: BoxFit.cover
+                            ),
                         ),
                       ),
                       Positioned(

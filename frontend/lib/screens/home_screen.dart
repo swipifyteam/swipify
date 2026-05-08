@@ -8,7 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/models/product_model.dart';
-import 'package:swipify/models/seller_voucher_model.dart';
+import 'package:swipify/models/voucher_model.dart';
 import 'package:swipify/features/cart/service/cart_provider.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/navigation/categories_screen.dart';
@@ -33,7 +33,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<ProductModel> _products = [];
   List<String> _categories = [];
-  List<SellerVoucherModel> _vouchers = [];
+  List<VoucherModel> _vouchers = [];
   List<ProductModel> _searchResults = [];
   bool _isSearching = false;
   bool _isLoading = true;
@@ -113,10 +113,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!hasData) setState(() { _isLoading = true; _error = null; });
 
     try {
+      final uid = context.read<AuthProvider>().user?.uid;
+      
       final results = await Future.wait([
         ApiService.getProducts(),
         ApiService.getCategories(),
-        ApiService.getVouchers(),
+        ApiService.getVouchers(userId: uid),
       ]);
 
       if (mounted) {
@@ -125,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
         setState(() {
           _categories = results[1] as List<String>;
-          _vouchers = results[2] as List<SellerVoucherModel>;
+          _vouchers = results[2] as List<VoucherModel>;
           _isLoading = false;
           _error = null;
         });
@@ -625,7 +627,7 @@ class _FlashDealsSection extends StatelessWidget {
 }
 
 class _VoucherStrip extends StatelessWidget {
-  final List<SellerVoucherModel> vouchers;
+  final List<VoucherModel> vouchers;
   const _VoucherStrip({required this.vouchers});
 
   @override

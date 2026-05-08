@@ -11,10 +11,8 @@ import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
 import 'package:swipify/services/api_service.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
-import 'package:video_compress/video_compress.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:swipify/features/seller/presentation/widgets/media_preview_widget.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -32,13 +30,10 @@ class _AddProductPageState extends State<AddProductPage> {
   final _sizesController = TextEditingController();
   final _colorsController = TextEditingController();
 
-  List<XFile> _imageFiles = [];
-  XFile? _videoFile;
-  VideoPlayerController? _videoController;
+  List<PlatformFile> _selectedMedia = [];
   
   bool _isUploading = false;
   String _uploadStatus = 'Publishing product…';
-  final ImagePicker _picker = ImagePicker();
 
   static const _categories = [
     'Electronics', 'Clothing', 'Footwear', 'Accessories',
@@ -54,58 +49,36 @@ class _AddProductPageState extends State<AddProductPage> {
     _descController.dispose();
     _sizesController.dispose();
     _colorsController.dispose();
-    _videoController?.dispose();
     super.dispose();
   }
 
   // ── Media Pickers ───────────────────────────────────────────────────────────
 
-  Future<void> _pickImages() async {
-    final pickedFiles = await _picker.pickMultiImage();
-    if (pickedFiles.isNotEmpty) {
-      debugPrint('[PRODUCT] Images selected: ${pickedFiles.length}');
-      setState(() {
-        _imageFiles = pickedFiles;
-      });
-    }
-  }
-
-  Future<void> _pickVideo() async {
+  Future<void> _pickMedia() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['mp4', 'mov', 'avi', 'mkv', 'wmv'],
-      allowMultiple: false,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'mp4', 'mov', 'avi'],
+      allowMultiple: true,
     );
-    
+
     if (result != null) {
-      final file = result.files.single;
-      final pickedFile = XFile(file.path ?? ''); // path is null on web
-      debugPrint('[PRODUCT] Video selected: ${file.name}');
-      
-      // Dispose old controller
-      await _videoController?.dispose();
-      
-      if (kIsWeb) {
-        _videoController = VideoPlayerController.networkUrl(Uri.parse(file.path ?? ''))
-          ..initialize().then((_) => setState(() {}));
-      } else {
-        _videoController = VideoPlayerController.file(File(file.path!))
-          ..initialize().then((_) => setState(() {}));
-      }
-      
+      debugPrint('[PRODUCT] Media selected: ${result.files.length}');
       setState(() {
-        _videoFile = pickedFile;
-        // Store bytes for web if path is not usable
+        // Add new files to the list
+        _selectedMedia.addAll(result.files);
       });
     }
   }
 
-  Future<void> _removeVideo() async {
-    await _videoController?.dispose();
+  void _removeMedia(int index) {
     setState(() {
-      _videoFile = null;
-      _videoController = null;
+      _selectedMedia.removeAt(index);
     });
+  }
+
+  bool _isVideo(PlatformFile file) {
+    final ext = file.extension?.toLowerCase() ?? '';
+    return ['mp4', 'mov', 'avi', 'mkv', 'wmv'].contains(ext);
   }
 
   // ── Submit Form ─────────────────────────────────────────────────────────────
@@ -116,7 +89,7 @@ class _AddProductPageState extends State<AddProductPage> {
       return;
     }
 
-    if (_imageFiles.isEmpty && _videoFile == null) {
+    if (_selectedMedia.isEmpty) {
       _showError('Please select at least one image or video.');
       return;
     }
@@ -135,67 +108,46 @@ class _AddProductPageState extends State<AddProductPage> {
       List<Map<String, dynamic>> mediaList = [];
       String? globalThumbnailUrl;
 
-      // ── Step 1: Upload Video if exists ────────────────────────────────────
-      if (_videoFile != null) {
-        List<int> videoBytes;
+      for (var file in _selectedMedia) {
+        final isVid = _isVideo(file);
+        final fileName = file.name;
+        final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
         
-        if (kIsWeb) {
-          setState(() => _uploadStatus = 'Reading video data…');
-          videoBytes = await _videoFile!.readAsBytes();
-        } else {
-          setState(() => _uploadStatus = 'Compressing video…');
-          debugPrint('[VIDEO] Compressing: ${_videoFile!.name}');
-          
-          MediaInfo? info = await VideoCompress.compressVideo(
-            _videoFile!.path,
-            quality: VideoQuality.MediumQuality,
-            deleteOrigin: false,
-            includeAudio: true,
-          );
-
-          if (info == null || info.file == null) {
-            throw Exception('Video compression failed');
-          }
-          
-          debugPrint('[VIDEO] Compressed size: ${info.file!.lengthSync()}');
-          videoBytes = await info.file!.readAsBytes();
+        if (bytes == null) {
+          debugPrint('[PRODUCT] Could not read bytes for $fileName');
+          continue;
         }
 
-        setState(() => _uploadStatus = 'Uploading video…');
-        final uploadResult = await ApiService.uploadProductVideo(
-          videoBytes,
-          'vid_${_videoFile!.name}',
-          userId,
-        );
+        if (isVid) {
+          setState(() => _uploadStatus = 'Uploading video $fileName…');
+          final uploadResult = await ApiService.uploadProductVideo(
+            bytes,
+            'vid_$fileName',
+            userId,
+          );
 
-        mediaList.add({
-          'type': 'video',
-          'url': uploadResult['video_url'],
-          'thumbnail_url': uploadResult['thumbnail_url'],
-        });
-        
-        globalThumbnailUrl = uploadResult['thumbnail_url'];
-        debugPrint('[VIDEO] Uploaded: ${uploadResult['video_url']}');
-      }
-
-      // ── Step 2: Upload Images ─────────────────────────────────────────────
-      int currentImg = 1;
-      for (var file in _imageFiles) {
-        setState(() => _uploadStatus = 'Uploading image $currentImg/${_imageFiles.length}…');
-        final bytes = await file.readAsBytes();
-        final imageUrl = await ApiService.uploadProductImage(
-          bytes,
-          file.name,
-          userId,
-        );
-        mediaList.add({
-          'type': 'image',
-          'url': imageUrl,
-        });
-        
-        // Use first image as thumbnail if no video thumbnail
-        globalThumbnailUrl ??= imageUrl;
-        currentImg++;
+          mediaList.add({
+            'type': 'video',
+            'url': uploadResult['video_url'],
+            'thumbnail_url': uploadResult['thumbnail_url'],
+          });
+          
+          globalThumbnailUrl ??= uploadResult['thumbnail_url'];
+          debugPrint('[VIDEO] Uploaded: ${uploadResult['video_url']}');
+        } else {
+          setState(() => _uploadStatus = 'Uploading image $fileName…');
+          final imageUrl = await ApiService.uploadProductImage(
+            bytes,
+            fileName,
+            userId,
+          );
+          mediaList.add({
+            'type': 'image',
+            'url': imageUrl,
+          });
+          
+          globalThumbnailUrl ??= imageUrl;
+        }
       }
 
       // ── Step 3: Create Product ────────────────────────────────────────────
@@ -209,8 +161,8 @@ class _AddProductPageState extends State<AddProductPage> {
         'description': _descController.text.trim(),
         'media': mediaList,
         'thumbnail_url': globalThumbnailUrl,
-        'image_count': _imageFiles.length,
-        'video_count': _videoFile != null ? 1 : 0,
+        'image_count': mediaList.where((m) => m['type'] == 'image').length,
+        'video_count': mediaList.where((m) => m['type'] == 'video').length,
         'sizes': _sizesController.text
             .split(',')
             .map((s) => s.trim())
@@ -290,32 +242,20 @@ class _AddProductPageState extends State<AddProductPage> {
                   // Mixed Gallery Preview
                   SizedBox(
                     height: 120,
-                    child: ListView(
+                    child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      children: [
-                        // Add Image Button
-                        _buildAddMediaButton(
-                          icon: Icons.add_a_photo,
-                          label: 'Add Images',
-                          onTap: _pickImages,
-                        ),
-                        const SizedBox(width: 12),
-                        
-                        // Add Video Button
-                        if (_videoFile == null)
-                          _buildAddMediaButton(
-                            icon: Icons.video_call,
-                            label: 'Add Video',
-                            onTap: _pickVideo,
-                          ),
-                        
-                        // Video Preview
-                        if (_videoFile != null)
-                          _buildVideoPreview(),
-                          
-                        // Image Previews
-                        ..._imageFiles.map((file) => _buildImagePreview(file)),
-                      ],
+                      itemCount: _selectedMedia.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return _buildAddMediaButton(
+                            icon: Icons.add_to_photos,
+                            label: 'Add Media',
+                            onTap: _pickMedia,
+                          );
+                        }
+                        final file = _selectedMedia[index - 1];
+                        return _buildMediaPreview(file, index - 1);
+                      },
                     ),
                   ),
 
@@ -469,7 +409,8 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
-  Widget _buildImagePreview(XFile file) {
+  Widget _buildMediaPreview(PlatformFile file, int index) {
+    final isVid = _isVideo(file);
     return Container(
       width: 100,
       margin: const EdgeInsets.only(right: 12),
@@ -477,64 +418,39 @@ class _AddProductPageState extends State<AddProductPage> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: kIsWeb
-                ? Image.network(file.path, width: 100, height: 120, fit: BoxFit.cover)
-                : Image.file(File(file.path), width: 100, height: 120, fit: BoxFit.cover),
-          ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: () => setState(() => _imageFiles.remove(file)),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: const Icon(Icons.close, size: 16, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoPreview() {
-    return Container(
-      width: 100,
-      margin: const EdgeInsets.only(right: 12),
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: AspectRatio(
-              aspectRatio: 100/120,
-              child: _videoController?.value.isInitialized ?? false
-                  ? VideoPlayer(_videoController!)
-                  : Container(color: Colors.black12),
-            ),
-          ),
-          const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: _removeVideo,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: const Icon(Icons.close, size: 16, color: Colors.white),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 4,
-            left: 4,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
-              child: const Text('VIDEO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+              color: Colors.black12,
+              child: MediaPreviewWidget(
+                path: file.path,
+                bytes: file.bytes,
+                isVideo: isVid,
+              ),
             ),
           ),
+          if (isVid)
+            const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: () => _removeMedia(index),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              ),
+            ),
+          ),
+          if (isVid)
+            Positioned(
+              bottom: 4,
+              left: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                child: const Text('VIDEO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+              ),
+            ),
         ],
       ),
     );

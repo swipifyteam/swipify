@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // For kIsWeb
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 
 class SellerOnboardingPage extends StatefulWidget {
   const SellerOnboardingPage({super.key});
@@ -42,9 +42,8 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
   // Document tracking
   bool _idUploaded = false;
   bool _selfieUploaded = false;
-  XFile? _idImage;
-  XFile? _selfieImage;
-  final ImagePicker _picker = ImagePicker();
+  PlatformFile? _idImage;
+  PlatformFile? _selfieImage;
 
   @override
   void dispose() {
@@ -78,17 +77,19 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
 
   Future<void> _pickImage(String type) async {
     try {
-      final pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 70,
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
       );
-      if (pickedFile != null) {
+
+      if (result != null) {
+        final file = result.files.single;
         setState(() {
           if (type == 'id') {
-            _idImage = pickedFile;
+            _idImage = file;
             _idUploaded = true;
           } else {
-            _selfieImage = pickedFile;
+            _selfieImage = file;
             _selfieUploaded = true;
           }
         });
@@ -141,7 +142,7 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
       String selfieUrl = '';
       
       if (_idImage != null) {
-        final bytes = await _idImage!.readAsBytes();
+        final bytes = _idImage!.bytes ?? await File(_idImage!.path!).readAsBytes();
         idUrl = await sellerProvider.uploadIdentityImage(
           bytes, 
           'id_verification.jpg', 
@@ -151,7 +152,7 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
       }
       
       if (_selfieImage != null) {
-        final bytes = await _selfieImage!.readAsBytes();
+        final bytes = _selfieImage!.bytes ?? await File(_selfieImage!.path!).readAsBytes();
         selfieUrl = await sellerProvider.uploadIdentityImage(
           bytes, 
           'selfie_verification.jpg', 
@@ -279,9 +280,9 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: _idImage != null
-                          ? kIsWeb
-                              ? Image.network(_idImage!.path, fit: BoxFit.contain)
-                              : Image.file(File(_idImage!.path), fit: BoxFit.contain)
+                          ? (kIsWeb || _idImage!.bytes != null)
+                              ? Image.memory(_idImage!.bytes!, fit: BoxFit.contain)
+                              : Image.file(File(_idImage!.path!), fit: BoxFit.contain)
                           : Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -306,9 +307,9 @@ class _SellerOnboardingPageState extends State<SellerOnboardingPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: _selfieImage != null
-                          ? kIsWeb
-                              ? Image.network(_selfieImage!.path, fit: BoxFit.contain)
-                              : Image.file(File(_selfieImage!.path), fit: BoxFit.contain)
+                          ? (kIsWeb || _selfieImage!.bytes != null)
+                              ? Image.memory(_selfieImage!.bytes!, fit: BoxFit.contain)
+                              : Image.file(File(_selfieImage!.path!), fit: BoxFit.contain)
                           : Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

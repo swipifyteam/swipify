@@ -1,7 +1,8 @@
 // lib/features/profile/widgets/profile_header.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/profile/service/user_provider.dart';
@@ -34,23 +35,21 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
 
   Future<void> _pickAndUploadImage(BuildContext context) async {
-    final picker = ImagePicker();
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
 
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1000,
-      maxHeight: 1000,
-      imageQuality: 85,
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
     );
 
-    if (pickedFile != null) {
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.single;
       if (!context.mounted) return;
       try {
-        final bytes = await pickedFile.readAsBytes();
+        final bytes = file.bytes ?? await File(file.path!).readAsBytes();
         if (!context.mounted) return;
-        await context.read<UserProvider>().updateProfilePicture(user.uid, bytes, pickedFile.name);
+        await context.read<UserProvider>().updateProfilePicture(user.uid, bytes, file.name);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile picture updated successfully!')),

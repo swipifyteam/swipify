@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:swipify/core/theme.dart';
-import 'package:swipify/models/seller_voucher_model.dart';
+import 'package:swipify/models/voucher_model.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/profile/service/user_provider.dart';
 
 class VoucherCard extends StatefulWidget {
-  final SellerVoucherModel voucher;
+  final VoucherModel voucher;
 
   final double? width;
   final EdgeInsetsGeometry? margin;
@@ -30,7 +30,7 @@ class _VoucherCardState extends State<VoucherCard> {
     final auth = context.read<AuthProvider>();
     final userProvider = context.read<UserProvider>();
     
-    if (!auth.isLoggedIn) {
+    if (!auth.isLoggedIn || auth.user?.uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please log in to claim vouchers')),
       );
@@ -39,7 +39,7 @@ class _VoucherCardState extends State<VoucherCard> {
 
     setState(() => _claiming = true);
     try {
-      await userProvider.claimVoucher(widget.voucher.id);
+      await userProvider.claimVoucher(auth.user!.uid, widget.voucher.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -53,7 +53,7 @@ class _VoucherCardState extends State<VoucherCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to claim voucher')),
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
         );
       }
     } finally {
@@ -65,7 +65,9 @@ class _VoucherCardState extends State<VoucherCard> {
   Widget build(BuildContext context) {
     return Consumer<UserProvider>(
       builder: (context, userProv, _) {
-        final isClaimed = userProv.isVoucherClaimed(widget.voucher.id);
+        // Use either the model's isClaimed or the provider's local state
+        final isClaimed = widget.voucher.isClaimed || userProv.isVoucherClaimed(widget.voucher.id);
+        final isOutOfStock = widget.voucher.remainingQuantity <= 0;
         
         return Container(
           width: widget.width,
@@ -83,7 +85,7 @@ class _VoucherCardState extends State<VoucherCard> {
                 children: [
                   // Left discount part
                   Container(
-                    width: 70,
+                    width: 80,
                     color: SwipifyTheme.accentColor.withValues(alpha: 0.1),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -91,10 +93,12 @@ class _VoucherCardState extends State<VoucherCard> {
                         const Icon(Icons.confirmation_num_outlined, color: SwipifyTheme.accentColor, size: 24),
                         const SizedBox(height: 4),
                         Text(
-                          widget.voucher.discountLabel,
+                          widget.voucher.discountType == 'fixed' 
+                              ? '₱${widget.voucher.discountValue.toStringAsFixed(0)} OFF'
+                              : '${widget.voucher.discountValue.toStringAsFixed(0)}% OFF',
                           style: GoogleFonts.inter(
                             color: SwipifyTheme.accentColor,
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: FontWeight.w900,
                           ),
                           textAlign: TextAlign.center,
@@ -115,19 +119,32 @@ class _VoucherCardState extends State<VoucherCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            widget.voucher.code,
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                              color: SwipifyTheme.textPrimary,
-                              letterSpacing: 1,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                widget.voucher.code,
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: SwipifyTheme.textPrimary,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              if (!isClaimed) Text(
+                                '${widget.voucher.remainingQuantity} left',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: isOutOfStock ? Colors.red : SwipifyTheme.textMuted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            widget.voucher.minOrderAmount > 0 
-                              ? 'Min. spend ₱${widget.voucher.minOrderAmount.toStringAsFixed(0)}'
+                            widget.voucher.minimumSpend > 0 
+                              ? 'Min. spend ₱${widget.voucher.minimumSpend.toStringAsFixed(0)}'
                               : 'No minimum spend',
                             style: GoogleFonts.inter(
                               fontSize: 10,
@@ -135,10 +152,10 @@ class _VoucherCardState extends State<VoucherCard> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.bottomRight,
-                            child: _buildClaimButton(isClaimed),
+                            child: _buildClaimButton(isClaimed, isOutOfStock),
                           ),
                         ],
                       ),
@@ -153,7 +170,7 @@ class _VoucherCardState extends State<VoucherCard> {
     );
   }
 
-  Widget _buildClaimButton(bool isClaimed) {
+  Widget _buildClaimButton(bool isClaimed, bool isOutOfStock) {
     if (_claiming) {
       return const SizedBox(
         width: 14, height: 14,
@@ -161,18 +178,21 @@ class _VoucherCardState extends State<VoucherCard> {
       );
     }
 
+    final String label = isClaimed ? 'Claimed' : (isOutOfStock ? 'Sold Out' : 'Claim');
+    final bool isDisabled = isClaimed || isOutOfStock;
+
     return GestureDetector(
-      onTap: isClaimed ? null : _handleClaim,
+      onTap: isDisabled ? null : _handleClaim,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isClaimed ? SwipifyTheme.borderColor : SwipifyTheme.primaryColor,
+          color: isDisabled ? SwipifyTheme.borderColor : SwipifyTheme.primaryColor,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          isClaimed ? 'Collected' : 'Collect',
+          label,
           style: GoogleFonts.inter(
-            color: isClaimed ? SwipifyTheme.textSecondary : Colors.white,
+            color: isDisabled ? SwipifyTheme.textSecondary : Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 10,
           ),

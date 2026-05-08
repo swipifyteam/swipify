@@ -78,12 +78,20 @@ class UserProvider extends ChangeNotifier {
     return _claimedVoucherIds.contains(voucherId);
   }
 
-  Future<void> claimVoucher(String voucherId) async {
-    // Simulate API call
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!_claimedVoucherIds.contains(voucherId)) {
-      _claimedVoucherIds.add(voucherId);
-      notifyListeners();
+  Future<void> claimVoucher(String uid, String voucherId) async {
+    try {
+      final response = await ApiService.claimVoucher(uid, voucherId);
+      if (response['success'] == true) {
+        if (!_claimedVoucherIds.contains(voucherId)) {
+          _claimedVoucherIds.add(voucherId);
+          notifyListeners();
+        }
+      } else {
+        throw Exception(response['message'] ?? 'Failed to claim voucher');
+      }
+    } catch (e) {
+      debugPrint('[USER PROVIDER] claimVoucher error: $e');
+      rethrow;
     }
   }
 

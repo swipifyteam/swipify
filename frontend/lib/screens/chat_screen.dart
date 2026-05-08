@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:swipify/models/message_model.dart';
 import 'package:swipify/services/chat_service.dart';
@@ -37,7 +38,6 @@ class _ChatScreenState extends State<ChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
   final TextEditingController _messageController = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
   final ScrollController _scrollController = ScrollController();
   
   bool _isUploading = false;
@@ -76,16 +76,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _pickAndUploadMedia(bool isVideo) async {
-    final XFile? file = isVideo 
-        ? await _picker.pickVideo(source: ImageSource.gallery)
-        : await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: isVideo ? FileType.video : FileType.image,
+      allowMultiple: false,
+    );
 
-    if (file == null) return;
+    if (result == null) return;
+    final file = result.files.single;
 
     setState(() => _isUploading = true);
 
     try {
-      final bytes = await file.readAsBytes();
+      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
       final url = await ApiService.uploadChatMedia(bytes, file.name);
       
       await _sendMessage(

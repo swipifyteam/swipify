@@ -24,7 +24,6 @@ dependencies:
   provider: ^6.1.2
   cached_network_image: ^3.3.1
   smooth_page_indicator: ^1.1.0
-  image_picker: ^1.2.1
   file_picker: ^10.3.10
   shared_preferences: ^2.5.5
   firebase_messaging: ^15.2.10
