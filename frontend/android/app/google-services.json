@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "663414398790-dmhlc0r2jblmqs8kgj4ig7cnl9ivfaq1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.swipify",
+            "certificate_hash": "5f64b087dd6d60c3465472292c6d26bfe5dd3137"
+          }
+        },
+        {
           "client_id": "663414398790-aud6n3kviito1nlqenbhhu9b5ufmvn0c.apps.googleusercontent.com",
           "client_type": 3
         }
