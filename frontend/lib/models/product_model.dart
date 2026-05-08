@@ -86,7 +86,17 @@ class ProductModel {
     // Fallback if media is empty but images exist
     if (mediaList.isEmpty && json['images'] != null) {
       mediaList = (json['images'] as List)
-          .map((img) => ProductMedia(type: 'image', url: img))
+          .map((img) {
+            final url = img.toString();
+            final isVideo = url.toLowerCase().contains('.mp4') || 
+                            url.toLowerCase().contains('.mov') || 
+                            url.toLowerCase().contains('.avi');
+            return ProductMedia(
+              type: isVideo ? 'video' : 'image', 
+              url: url,
+              thumbnailUrl: json['thumbnail_url'] // fallback thumbnail
+            );
+          })
           .toList();
     }
 
@@ -119,13 +129,25 @@ class ProductModel {
 
   /// Returns the first image URL, or video thumbnail, or placeholder.
   String get firstImage {
+    // 1. Try explicit thumbnail
     if (thumbnailUrl != null && thumbnailUrl!.isNotEmpty) return thumbnailUrl!;
-    if (images.isNotEmpty) return images[0];
+    
+    // 2. Try to find an image in media list
     if (media.isNotEmpty) {
-      final first = media[0];
-      if (first.type == 'video' && first.thumbnailUrl != null) return first.thumbnailUrl!;
-      return first.url;
+      final firstImageItem = media.firstWhere((m) => m.type == 'image', orElse: () => media[0]);
+      if (firstImageItem.type == 'image') return firstImageItem.url;
+      if (firstImageItem.thumbnailUrl != null) return firstImageItem.thumbnailUrl!;
     }
+    
+    // 3. Fallback to images[0] only if it's not a known video
+    if (images.isNotEmpty) {
+      final img = images[0];
+      final isVideo = img.toLowerCase().contains('.mp4') || 
+                      img.toLowerCase().contains('.mov') || 
+                      img.toLowerCase().contains('.avi');
+      if (!isVideo) return img;
+    }
+    
     return 'https://picsum.photos/300';
   }
 

@@ -8,20 +8,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 
-import 'package:image_picker/image_picker.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/orders/model/order_model.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
 import 'package:swipify/features/seller/service/seller_products_provider.dart';
 import 'package:swipify/features/seller/presentation/pages/seller_voucher_page.dart';
 import 'package:swipify/features/seller/presentation/pages/marketing/flash_sales_page.dart';
-import 'package:swipify/features/seller/presentation/pages/marketing/bundle_deals_page.dart';
 import 'package:swipify/features/seller/presentation/pages/marketing/loyalty_points_page.dart';
+import 'package:swipify/features/seller/presentation/pages/marketing/bundle_deals_page.dart';
+import 'package:swipify/features/seller/presentation/widgets/media_preview_widget.dart';
 import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
-import 'package:swipify/screens/chat_list_screen.dart';
 import 'package:swipify/core/utils/responsive_helper.dart';
+import 'package:swipify/screens/chat_list_screen.dart';
 
 // ─── Colour palette ──────────────────────────────────────────────────────────
 const _kPrimary    = Color(0xFF36454F); // Charcoal
@@ -1986,18 +1989,23 @@ class _SettingsModuleState extends State<_SettingsModule> {
   }
 
   Future<void> _pickLogo() async {
-    final picker = ImagePicker();
     final auth = context.read<AuthProvider>();
     final uid = auth.user?.uid;
     if (uid == null) return;
 
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (image == null) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
 
     setState(() => _isUploadingLogo = true);
     try {
-      final bytes = await image.readAsBytes();
-      final url = await ApiService.uploadProductImage(bytes, 'logo_${image.name}', uid);
+      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+      final url = await ApiService.uploadProductImage(bytes, 'logo_${file.name}', uid);
       setState(() {
         _logoUrlCtrl.text = url;
         _isUploadingLogo = false;
@@ -2013,18 +2021,23 @@ class _SettingsModuleState extends State<_SettingsModule> {
   }
 
   Future<void> _pickBanner() async {
-    final picker = ImagePicker();
     final auth = context.read<AuthProvider>();
     final uid = auth.user?.uid;
     if (uid == null) return;
 
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (image == null) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
 
     setState(() => _isUploadingBanner = true);
     try {
-      final bytes = await image.readAsBytes();
-      final url = await ApiService.uploadProductImage(bytes, 'banner_${image.name}', uid);
+      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+      final url = await ApiService.uploadProductImage(bytes, 'banner_${file.name}', uid);
       setState(() {
         _bannerUrlCtrl.text = url;
         _isUploadingBanner = false;
@@ -2356,11 +2369,11 @@ class _ProductFormPageState extends State<_ProductFormPage> {
   late TextEditingController _skuCtrl;
   late TextEditingController _weightCtrl;
 
-  List<String> _images = [];
+  List<String> _images = []; // Existing URLs
+  List<PlatformFile> _newMedia = []; // Newly picked files
   String _category = '';
   bool _isPublished = true;
   bool _isSaving = false;
-  bool _isUploading = false;
   List<String> _categories = [];
 
   bool get _isEdit => widget.product != null;
@@ -2399,31 +2412,30 @@ class _ProductFormPageState extends State<_ProductFormPage> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final auth = context.read<AuthProvider>();
-    final uid = auth.user?.uid;
-    if (uid == null) return;
-
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (image == null) return;
-
-    setState(() => _isUploading = true);
-    try {
-      final bytes = await image.readAsBytes();
-      final url = await ApiService.uploadProductImage(bytes, image.name, uid);
+  Future<void> _pickMedia(bool isVideo) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: isVideo ? FileType.video : FileType.image,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result != null) {
       setState(() {
-        _images.add(url);
-        _isUploading = false;
+        _newMedia.addAll(result.files);
       });
-    } catch (e) {
-      setState(() => _isUploading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e'), backgroundColor: _kRed),
-        );
-      }
     }
+  }
+
+  void _removeNewMedia(int index) {
+    setState(() => _newMedia.removeAt(index));
+  }
+
+  void _removeExistingImage(int index) {
+    setState(() => _images.removeAt(index));
+  }
+
+  bool _isFileTypeVideo(PlatformFile file) {
+    final ext = file.extension?.toLowerCase() ?? '';
+    return ['mp4', 'mov', 'avi', 'mkv', 'wmv'].contains(ext);
   }
 
   @override
@@ -2598,17 +2610,33 @@ class _ProductFormPageState extends State<_ProductFormPage> {
     final uid  = auth.user?.uid ?? '';
     final spp  = context.read<SellerProductsProvider>();
 
-    final data = {
-      'sellerId': uid,
-      'seller_id': uid,
-      'name': _nameCtrl.text.trim(),
-      'description': _descCtrl.text.trim(),
-      'category': _category,
-      'price': double.parse(_priceCtrl.text.trim()),
-      'stock': int.parse(_stockCtrl.text.trim()),
-      'images': _images,
-      'is_published': _isPublished,
-    };
+    try {
+      // Upload new media first
+      List<String> uploadedUrls = List.from(_images);
+      for (var file in _newMedia) {
+        final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+        final isVid = _isFileTypeVideo(file);
+        String url;
+        if (isVid) {
+          final result = await ApiService.uploadProductVideo(bytes, file.name, uid);
+          url = result['video_url'] ?? '';
+        } else {
+          url = await ApiService.uploadProductImage(bytes, file.name, uid);
+        }
+        uploadedUrls.add(url);
+      }
+
+      final data = {
+        'sellerId': uid,
+        'seller_id': uid,
+        'name': _nameCtrl.text.trim(),
+        'description': _descCtrl.text.trim(),
+        'category': _category,
+        'price': double.parse(_priceCtrl.text.trim()),
+        'stock': int.parse(_stockCtrl.text.trim()),
+        'images': uploadedUrls,
+        'is_published': _isPublished,
+      };
 
     bool success;
     if (_isEdit) {
@@ -2618,7 +2646,6 @@ class _ProductFormPageState extends State<_ProductFormPage> {
     }
 
     setState(() => _isSaving = false);
-
     if (mounted) {
       if (success) {
         Navigator.pop(context);
@@ -2639,7 +2666,15 @@ class _ProductFormPageState extends State<_ProductFormPage> {
         );
       }
     }
+  } catch (e) {
+    setState(() => _isSaving = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e'), backgroundColor: _kRed),
+      );
+    }
   }
+}
 
   Widget _dropdownField() {
     return DropdownButtonFormField<String>(
@@ -2657,59 +2692,142 @@ class _ProductFormPageState extends State<_ProductFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Product Images', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _isUploading ? null : _pickImage,
-            icon: _isUploading 
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.add_a_photo_rounded, size: 20),
-            label: Text(_isUploading ? 'Uploading...' : 'Upload Image'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              side: BorderSide(color: _kBorder),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              foregroundColor: _kTextPrimary,
-            ),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Product Media', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+            Text('${_images.length + _newMedia.length} items', 
+              style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary)),
+          ],
         ),
         const SizedBox(height: 12),
-        if (_images.isNotEmpty)
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8,
-            ),
-            itemCount: _images.length,
-            itemBuilder: (_, i) => Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(_images[i], fit: BoxFit.cover,
-                      width: double.infinity, height: double.infinity,
-                      errorBuilder: (_, _, _) => Container(
-                        color: _kSurface,
-                        child: const Icon(Icons.broken_image_rounded, color: _kBorder),
-                      )),
-                ),
-                Positioned(
-                  top: 2, right: 2,
-                  child: InkWell(
-                    onTap: () => setState(() => _images.removeAt(i)),
-                    child: Container(
-                      decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(30)),
-                      padding: const EdgeInsets.all(2),
-                      child: const Icon(Icons.close_rounded, size: 10, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        SizedBox(
+          height: 120,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              // Add Buttons
+              _buildAddMediaBtn(icon: Icons.add_a_photo_rounded, label: 'Add Image', onTap: () => _pickMedia(false)),
+              _buildAddMediaBtn(icon: Icons.video_call_rounded, label: 'Add Video', onTap: () => _pickMedia(true)),
+              
+              // Existing Images (URLs)
+              ..._images.asMap().entries.map((entry) => _buildUrlPreview(entry.value, entry.key)),
+              
+              // New Media (Files)
+              ..._newMedia.asMap().entries.map((entry) => _buildFilePreview(entry.value, entry.key)),
+            ],
+          ),
+        ),
+        if (_images.isEmpty && _newMedia.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('Add at least one image to showcase your product.', 
+              style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary, fontStyle: FontStyle.italic)),
           ),
       ],
+    );
+  }
+
+  Widget _buildAddMediaBtn({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 100,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _kSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kBorder.withValues(alpha: 0.5), width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: _kAccent, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _kTextPrimary)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUrlPreview(String url, int index) {
+    final isVid = url.toLowerCase().contains('.mp4') || 
+                  url.toLowerCase().contains('.mov') || 
+                  url.toLowerCase().contains('.avi');
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: 12),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: MediaPreviewWidget(
+              url: url,
+              isVideo: isVid,
+            ),
+          ),
+          if (isVid)
+            const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
+          Positioned(
+            top: 4, right: 4,
+            child: GestureDetector(
+              onTap: () => _removeExistingImage(index),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilePreview(PlatformFile file, int index) {
+    final isVid = _isFileTypeVideo(file);
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: 12),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: MediaPreviewWidget(
+              path: file.path,
+              bytes: file.bytes,
+              isVideo: isVid,
+            ),
+          ),
+          if (isVid)
+            const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
+          Positioned(
+            top: 4, right: 4,
+            child: GestureDetector(
+              onTap: () => _removeNewMedia(index),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+          if (isVid)
+            Positioned(
+              bottom: 4, left: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                child: const Text('NEW VIDEO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

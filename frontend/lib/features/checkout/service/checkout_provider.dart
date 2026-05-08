@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:swipify/models/address_model.dart';
 import 'package:swipify/models/shipping_option_model.dart';
 import 'package:swipify/features/cart/model/cart_item_model.dart';
-import 'package:swipify/models/seller_voucher_model.dart';
+import 'package:swipify/models/voucher_model.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:swipify/services/payment_service.dart';
 
@@ -14,7 +14,7 @@ class CheckoutProvider with ChangeNotifier {
   ShippingOptionModel? _selectedShippingOption;
   final Map<String, VoucherApplyResult> _shopVouchers = {};
   VoucherApplyResult? _shippingVoucher;
-  List<SellerVoucherModel> _availableVouchers = [];
+  List<VoucherModel> _availableVouchers = [];
   List<CartItemModel> _cartItems = [];
   String _userId = '';
   double _backendShippingFee = 0.0;
@@ -36,7 +36,7 @@ class CheckoutProvider with ChangeNotifier {
   ShippingOptionModel? get selectedShippingOption => _selectedShippingOption;
   Map<String, VoucherApplyResult> get appliedShopVouchers => _shopVouchers;
   VoucherApplyResult? get appliedShippingVoucher => _shippingVoucher;
-  List<SellerVoucherModel> get availableVouchers => _availableVouchers;
+  List<VoucherModel> get availableVouchers => _availableVouchers;
   bool get isPlacingOrder => _isPlacingOrder;
   bool get isApplyingVoucher => _isApplyingVoucher;
   bool get isInitialized => _isInitialized;
@@ -89,6 +89,7 @@ class CheckoutProvider with ChangeNotifier {
       final cartTotals = {
         for (var sId in sellerIds) sId: sellerSubtotal(sId),
       };
+      // Important: this now fetches only claimed vouchers for the user
       _availableVouchers = await ApiService.getAvailableVouchers(
         userId: userId,
         sellerIds: sellerIds,
@@ -143,6 +144,7 @@ class CheckoutProvider with ChangeNotifier {
 
     try {
       final result = await ApiService.applyVoucher(
+        userId: _userId,
         sellerId: sellerId,
         voucherCode: code,
         cartTotal: sellerSubtotal(sellerId),
@@ -152,18 +154,22 @@ class CheckoutProvider with ChangeNotifier {
       if (result.discount > 0) {
         final voucherInfo = _availableVouchers.firstWhere(
           (v) => v.code == code,
-          orElse: () => SellerVoucherModel(
+          orElse: () => VoucherModel(
             id: '',
-            sellerId: sellerId,
+            brandId: sellerId,
             code: code,
+            title: code,
+            description: '',
             discountType: 'fixed',
             discountTarget: 'SUBTOTAL',
             discountValue: 0,
-            minOrderAmount: 0,
+            minimumSpend: 0,
+            endDate: DateTime.now(),
+            startDate: DateTime.now(),
             usageLimit: 0,
             usedCount: 0,
-            startDate: DateTime.now(),
-            endDate: DateTime.now(),
+            remainingQuantity: 0,
+            claimedCount: 0,
             isActive: true,
             createdAt: DateTime.now(),
           ),

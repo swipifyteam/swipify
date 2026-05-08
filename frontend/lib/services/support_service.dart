@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:swipify/services/api_service.dart';
-import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 
 class SupportService {
   static Future<void> createTicket({
@@ -11,7 +12,7 @@ class SupportService {
     required String category,
     required String subject,
     required String message,
-    List<XFile>? images,
+    List<PlatformFile>? images,
   }) async {
     final url = Uri.parse('${ApiService.baseUrl}/support/tickets');
     
@@ -28,7 +29,7 @@ class SupportService {
     
     if (images != null) {
       for (var file in images) {
-        final bytes = await file.readAsBytes();
+        final bytes = file.bytes ?? await File(file.path!).readAsBytes();
         final multipartFile = http.MultipartFile.fromBytes(
           'images',
           bytes,

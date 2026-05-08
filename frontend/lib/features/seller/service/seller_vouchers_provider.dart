@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:swipify/models/seller_voucher_model.dart';
+import 'package:swipify/models/voucher_model.dart';
 import 'package:swipify/services/api_service.dart';
 
 class SellerVouchersProvider with ChangeNotifier {
-  List<SellerVoucherModel> _vouchers = [];
+  List<VoucherModel> _vouchers = [];
   bool _isLoading = false;
   String? _errorMessage;
 
-  List<SellerVoucherModel> get vouchers => _vouchers;
+  List<VoucherModel> get vouchers => _vouchers;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
