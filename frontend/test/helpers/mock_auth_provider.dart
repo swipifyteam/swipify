@@ -11,7 +11,7 @@ class MockAuthProvider extends ChangeNotifier implements AuthProvider {
   bool _isLoading = false;
   String? _error;
   String? _verificationId;
-  Map<String, dynamic>? _signupConfig = {
+  final Map<String, dynamic> _signupConfig = {
     'step_labels': ['Contact', 'Security', 'Profile', 'Address'],
     'password_min_length': 8,
   };

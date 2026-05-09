@@ -10,6 +10,7 @@ from app.seller.schemas import (
     BulkActionRequest,
     StockUpdateRequest
 )
+from app.utils.media_utils import validate_image_size, validate_video_size, ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, validate_media_type
 import uuid
 
 router = APIRouter()
@@ -128,9 +129,12 @@ async def create_product(request: ProductCreateRequest, current_user_id: str = D
 # 8. IMAGE MANAGEMENT
 @router.post("/upload-image")
 async def upload_product_image(file: UploadFile = File(...), current_user_id: str = Depends(get_current_user_id)):
-    """Upload product image to Cloudinary."""
+    """Upload product image to Cloudinary with size validation."""
     try:
+        validate_media_type(file.content_type, ALLOWED_IMAGE_TYPES)
         contents = await file.read()
+        validate_image_size(contents)
+        
         unique_filename = f"prod_{current_user_id}_{uuid.uuid4()}_{file.filename}"
         url = upload_image_to_cloudinary(contents, unique_filename, folder="products")
         if not url:
@@ -143,17 +147,13 @@ async def upload_product_image(file: UploadFile = File(...), current_user_id: st
 
 @router.post("/upload-video")
 async def upload_product_video(file: UploadFile = File(...), current_user_id: str = Depends(get_current_user_id)):
-    """Upload product video to Cloudinary."""
-    # Validate format
-    allowed_formats = ["video/mp4", "video/quicktime", "video/webm", "application/octet-stream"]
-    if file.content_type not in allowed_formats:
-        # Some browsers/tools might send video as octet-stream, but we usually prefer explicit check
-        pass 
-
+    """Upload product video to Cloudinary with size validation."""
     try:
+        validate_media_type(file.content_type, ALLOWED_VIDEO_TYPES)
         contents = await file.read()
+        validate_video_size(contents)
+
         unique_filename = f"vid_{current_user_id}_{uuid.uuid4()}_{file.filename}"
-        
         video_url, thumbnail_url = upload_video_to_cloudinary(contents, unique_filename, folder="swipify/products/videos")
         
         return {

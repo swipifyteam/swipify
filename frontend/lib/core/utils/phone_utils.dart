@@ -26,7 +26,6 @@ class PhoneUtils {
       normalized = phone;
     }
 
-    print("[PHONE NORMALIZED] $normalized");
     return normalized;
   }
 

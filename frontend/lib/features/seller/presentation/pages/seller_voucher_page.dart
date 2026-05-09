@@ -407,7 +407,7 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _discountType,
+                initialValue: _discountType,
                 decoration: const InputDecoration(labelText: "Discount Type"),
                 items: const [
                   DropdownMenuItem(value: "percentage", child: Text("Percentage (%)")),
@@ -417,7 +417,7 @@ class _VoucherFormDialogState extends State<VoucherFormDialog> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _discountTarget,
+                initialValue: _discountTarget,
                 decoration: const InputDecoration(labelText: "Discount Target"),
                 items: const [
                   DropdownMenuItem(value: "SUBTOTAL", child: Text("Subtotal (Shop)")),

@@ -35,6 +35,45 @@ class _OrderScreenState extends State<OrderScreen> {
     }
   }
 
+  void _confirmCancelOrder(String orderId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Cancel Order?", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: const Text("Are you sure you want to cancel this order? This action cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("NO")),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              _handleCancelOrder(orderId);
+            },
+            child: const Text("YES, CANCEL", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleCancelOrder(String orderId) async {
+    // Show loading
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    
+    try {
+      await OrderService.cancelOrder(orderId);
+      if (mounted) {
+        Navigator.pop(context); // close loading
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Order cancelled successfully"), backgroundColor: Colors.green));
+        _fetchOrders(); // Refresh list
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // close loading
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to cancel order: $e"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
   void _showReviewDialog(Order order, OrderItem item) {
     int rating = 5;
     final commentController = TextEditingController();
@@ -264,6 +303,24 @@ class _OrderScreenState extends State<OrderScreen> {
                           ),
                         ],
                       ),
+                      if (order.status.toLowerCase() == 'pending')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _confirmCancelOrder(order.id),
+                              icon: const Icon(Icons.cancel_outlined, size: 18),
+                              label: const Text("CANCEL ORDER", style: TextStyle(fontWeight: FontWeight.bold)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

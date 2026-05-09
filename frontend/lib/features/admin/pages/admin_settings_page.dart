@@ -157,7 +157,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                         _settings['maintenance_mode'] = value;
                       });
                     },
-                    activeColor: SwipifyTheme.primaryColor,
+                    activeThumbColor: SwipifyTheme.primaryColor,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
                 ),

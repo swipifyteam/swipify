@@ -37,7 +37,7 @@ import 'package:swipify/features/navigation/service/notification_provider.dart';
 // Routes and Additional Screens
 import 'package:swipify/features/profile/screens/orders_screen.dart';
 import 'package:swipify/features/seller/presentation/pages/seller_dashboard_page.dart';
-import 'package:swipify/features/seller/presentation/pages/add_product_page.dart';
+import 'package:swipify/features/seller/presentation/pages/product_form_page.dart';
 import 'package:swipify/features/admin/pages/admin_dashboard_screen.dart';
 
 Future<void> main() async {
@@ -105,7 +105,7 @@ class Swipify extends StatelessWidget {
           '/home': (context) => const MainNavScreen(),
           '/orders': (context) => const OrdersScreen(),
           '/seller-dashboard': (context) => const SellerDashboardPage(),
-          '/add-product': (context) => const AddProductPage(),
+          '/add-product': (context) => const ProductFormPage(),
           '/admin': (context) => const AdminDashboardScreen(),
         },
       ),

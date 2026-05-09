@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/services.dart';
 import 'package:swipify/core/utils/phone_utils.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/auth/screen/otp_verification_screen.dart';

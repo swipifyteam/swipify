@@ -5,7 +5,6 @@ import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/models/address_model.dart';
 import 'package:swipify/features/profile/service/address_provider.dart';
 import 'package:swipify/core/utils/phone_utils.dart';
-import 'package:flutter/services.dart';
 
 class AddressListScreen extends StatefulWidget {
   const AddressListScreen({super.key});

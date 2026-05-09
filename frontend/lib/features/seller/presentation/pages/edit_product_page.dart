@@ -2,11 +2,11 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
+import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:swipify/features/seller/presentation/widgets/media_preview_widget.dart';
@@ -39,6 +39,10 @@ class _EditProductPageState extends State<EditProductPage> {
     'Home & Living', 'Beauty', 'Sports',
   ];
   late String _selectedCategory;
+  
+  Null get _videoController => null;
+  
+  Null get _newVideoFile => null;
 
   @override
   void initState() {
@@ -65,6 +69,7 @@ class _EditProductPageState extends State<EditProductPage> {
     _descController.dispose();
     _sizesController.dispose();
     _colorsController.dispose();
+    // ignore: dead_code
     _videoController?.dispose();
     super.dispose();
   }
@@ -100,7 +105,7 @@ class _EditProductPageState extends State<EditProductPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_existingMedia.isEmpty && _newImageFiles.isEmpty && _newVideoFile == null) {
+    if (_existingMedia.isEmpty && _newMedia.isEmpty && _newVideoFile == null) {
       _showError('Please add at least one image or video.');
       return;
     }

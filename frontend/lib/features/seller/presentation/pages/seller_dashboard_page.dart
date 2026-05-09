@@ -10,7 +10,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 
 import 'package:swipify/features/auth/service/auth_provider.dart';
 import 'package:swipify/features/orders/model/order_model.dart';
@@ -21,24 +20,25 @@ import 'package:swipify/features/seller/presentation/pages/marketing/flash_sales
 import 'package:swipify/features/seller/presentation/pages/marketing/loyalty_points_page.dart';
 import 'package:swipify/features/seller/presentation/pages/marketing/bundle_deals_page.dart';
 import 'package:swipify/features/seller/presentation/widgets/media_preview_widget.dart';
+import 'package:swipify/features/seller/presentation/pages/product_form_page.dart';
 import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:swipify/core/utils/responsive_helper.dart';
 import 'package:swipify/screens/chat_list_screen.dart';
 
-// ─── Colour palette ──────────────────────────────────────────────────────────
-const _kPrimary    = Color(0xFF36454F); // Charcoal
+// â”€â”€â”€ Colour palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const _kPrimary    = Color(0xFF36454F); // Charcoal 
 const _kAccent     = Color(0xFFE97B4A); // Warm orange  (highlight / CTA)
 const _kSurface    = Color(0xFFF4F6F8);
 const _kCard       = Color(0xFFFFFFFF);
 const _kBorder     = Color(0xFFE0E4E9);
 const _kTextPrimary    = Color(0xFF1A2332);
 
-// ─── Relative time helper ────────────────────────────────────────────────────
+// â”€â”€â”€ Relative time helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 String _timeAgo(String? isoString) {
-  if (isoString == null || isoString.isEmpty) return '—';
+  if (isoString == null || isoString.isEmpty) return 'â€”';
   final dt = DateTime.tryParse(isoString);
-  if (dt == null) return '—';
+  if (dt == null) return 'â€”';
   final diff = DateTime.now().toUtc().difference(dt);
   if (diff.inSeconds < 60) return 'Just now';
   if (diff.inMinutes < 60) return '${diff.inMinutes} min${diff.inMinutes == 1 ? '' : 's'} ago';
@@ -53,7 +53,7 @@ const _kBlue       = Color(0xFF2D7DD2);
 const _kPurple     = Color(0xFF8B5CF6);
 const _kRed        = Color(0xFFE74C3C);
 
-// ─── Sidebar items ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Sidebar items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 enum _NavItem { overview, products, orders, messages, marketing, finance, settings }
 
 const _navDefs = [
@@ -168,6 +168,27 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
           ),
         ],
       ),
+      // â”€â”€ Mobile/Tablet FAB: Add Product (Products tab only) â”€â”€
+      floatingActionButton: (!isDesktop && _active == _NavItem.products)
+          ? FloatingActionButton.extended(
+              heroTag: 'add_product_fab',
+              onPressed: () {
+                final auth = context.read<AuthProvider>();
+                final uid = auth.user?.uid;
+                if (uid != null) {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const ProductFormPage(),
+                  )).then((_) {
+                    if (!context.mounted) return;
+                    context.read<SellerProductsProvider>().fetchSellerProducts(uid);
+                  });
+                }
+              },
+              backgroundColor: _kAccent,
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: Text('Add Product', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white)),
+            )
+          : null,
     );
   }
 
@@ -191,9 +212,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // DRAWER CONTENT (Mobile)
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _DrawerContent extends StatelessWidget {
   final _NavItem active;
   final ValueChanged<_NavItem> onSelect;
@@ -292,9 +313,9 @@ class _DrawerContent extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SIDEBAR
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _Sidebar extends StatelessWidget {
   final _NavItem active;
   final bool expanded;
@@ -459,9 +480,9 @@ class _NavTile extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SHARED WIDGETS
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /// Standard top bar used by every module
 class _ModuleBar extends StatelessWidget implements PreferredSizeWidget {
@@ -607,9 +628,9 @@ Widget _pillBadge(String text, Color bg) => Container(
       child: Text(text, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: bg)),
     );
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 1 ── OVERVIEW
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 1 â”€â”€ OVERVIEW
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _OverviewModule extends StatelessWidget {
   const _OverviewModule();
 
@@ -856,9 +877,9 @@ class _LowStockRow extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 2 ── PRODUCTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 2 â”€â”€ PRODUCTS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _ProductsModule extends StatefulWidget {
   const _ProductsModule();
   @override
@@ -939,7 +960,7 @@ class _ProductsModuleState extends State<_ProductsModule> {
                         onChanged: (_) => setState(() {}),
                         style: GoogleFonts.inter(fontSize: 13),
                         decoration: InputDecoration(
-                          hintText: 'Search products…',
+                          hintText: 'Search productsâ€¦',
                           hintStyle: GoogleFonts.inter(fontSize: 13, color: _kTextSecondary),
                           prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _kTextSecondary),
                           filled: true,
@@ -1052,7 +1073,7 @@ class _ProductsModuleState extends State<_ProductsModule> {
 
   void _openAddProduct(BuildContext context, String uid) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => const _ProductFormPage(),
+      builder: (_) => const ProductFormPage(),
     )).then((_) {
       if (!context.mounted) return;
       context.read<SellerProductsProvider>().fetchSellerProducts(uid);
@@ -1061,7 +1082,7 @@ class _ProductsModuleState extends State<_ProductsModule> {
 
   void _openEditProduct(BuildContext context, ProductModel product, String uid) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _ProductFormPage(product: product),
+      builder: (_) => ProductFormPage(product: product),
     )).then((_) {
       if (!context.mounted) return;
       context.read<SellerProductsProvider>().fetchSellerProducts(uid);
@@ -1310,9 +1331,9 @@ class _ProductTableRow extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 3 ── ORDERS
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 3 â”€â”€ ORDERS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _ProductMobileCard extends StatelessWidget {
   final ProductModel product;
   final VoidCallback onEdit;
@@ -1647,9 +1668,9 @@ class _NextStatusButton extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 4 ── MARKETING
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 4 â”€â”€ MARKETING
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _MarketingModule extends StatelessWidget {
   const _MarketingModule();
 
@@ -1795,9 +1816,9 @@ class _MarketingCard extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 5 ── FINANCE
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 5 â”€â”€ FINANCE
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _FinanceModule extends StatelessWidget {
   const _FinanceModule();
 
@@ -1946,9 +1967,9 @@ class _EarningsRow extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 6 ── SETTINGS
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// MODULE 6 â”€â”€ SETTINGS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 class _SettingsModule extends StatefulWidget {
   const _SettingsModule();
   @override
@@ -2242,7 +2263,7 @@ class _SettingsModuleState extends State<_SettingsModule> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(success ? '✅ Shop settings updated successfully' : '❌ Failed to update settings'), 
+                          content: Text(success ? 'âœ… Shop settings updated successfully' : 'âŒ Failed to update settings'), 
                           behavior: SnackBarBehavior.floating,
                           backgroundColor: success ? _kGreen : _kRed,
                         ),
@@ -2349,509 +2370,8 @@ class _SettingRow extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PRODUCT FORM (Add + Edit)  — inline in same route stack
-// ═══════════════════════════════════════════════════════════════════════════════
-class _ProductFormPage extends StatefulWidget {
-  final ProductModel? product;
-  const _ProductFormPage({this.product});
 
-  @override
-  State<_ProductFormPage> createState() => _ProductFormPageState();
-}
-
-class _ProductFormPageState extends State<_ProductFormPage> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameCtrl;
-  late TextEditingController _priceCtrl;
-  late TextEditingController _stockCtrl;
-  late TextEditingController _descCtrl;
-  late TextEditingController _skuCtrl;
-  late TextEditingController _weightCtrl;
-
-  List<String> _images = []; // Existing URLs
-  List<PlatformFile> _newMedia = []; // Newly picked files
-  String _category = '';
-  bool _isPublished = true;
-  bool _isSaving = false;
-  List<String> _categories = [];
-
-  bool get _isEdit => widget.product != null;
-
-  @override
-  void initState() {
-    super.initState();
-    final p = widget.product;
-    _nameCtrl   = TextEditingController(text: p?.name ?? '');
-    _priceCtrl  = TextEditingController(text: p?.price.toString() ?? '');
-    _stockCtrl  = TextEditingController(text: p?.stock.toString() ?? '');
-    _descCtrl   = TextEditingController(text: p?.description ?? '');
-    _skuCtrl    = TextEditingController(text: p?.id.substring(0, 8).toUpperCase() ?? '');
-    _weightCtrl = TextEditingController(text: '0.5');
-    _images     = List<String>.from(p?.images ?? []);
-    _category   = p?.category ?? '';
-    _isPublished = p?.isPublished ?? true;
-    _loadCategories();
-  }
-
-  Future<void> _loadCategories() async {
-    try {
-      final cats = await ApiService.getCategories();
-      if (mounted) setState(() => _categories = cats);
-    } catch (_) {}
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _priceCtrl.dispose();
-    _stockCtrl.dispose();
-    _descCtrl.dispose();
-    _skuCtrl.dispose();
-    _weightCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickMedia(bool isVideo) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: isVideo ? FileType.video : FileType.image,
-      allowMultiple: true,
-      withData: true,
-    );
-    if (result != null) {
-      setState(() {
-        _newMedia.addAll(result.files);
-      });
-    }
-  }
-
-  void _removeNewMedia(int index) {
-    setState(() => _newMedia.removeAt(index));
-  }
-
-  void _removeExistingImage(int index) {
-    setState(() => _images.removeAt(index));
-  }
-
-  bool _isFileTypeVideo(PlatformFile file) {
-    final ext = file.extension?.toLowerCase() ?? '';
-    return ['mp4', 'mov', 'avi', 'mkv', 'wmv'].contains(ext);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isTablet = ResponsiveHelper.isTablet(context);
-    final isDesktop = ResponsiveHelper.isDesktop(context);
-
-    return Scaffold(
-      backgroundColor: _kSurface,
-      appBar: AppBar(
-        backgroundColor: _kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(_isEdit ? 'Edit Product' : 'Add New Product',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16)),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: isMobile 
-          ? SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _formSection('Basic Information', [
-                    _field(controller: _nameCtrl, label: 'Product Name *',
-                        validator: (v) => v?.isEmpty == true ? 'Required' : null),
-                    const SizedBox(height: 14),
-                    _field(controller: _descCtrl, label: 'Description *',
-                        maxLines: 4,
-                        validator: (v) => v?.isEmpty == true ? 'Required' : null),
-                    const SizedBox(height: 14),
-                    _dropdownField(),
-                  ]),
-                  const SizedBox(height: 16),
-                  _formSection('Pricing & Inventory', [
-                    _field(controller: _priceCtrl, label: 'Price (₱) *',
-                        keyboardType: TextInputType.number),
-                    const SizedBox(height: 12),
-                    _field(controller: _stockCtrl, label: 'Stock Qty *',
-                        keyboardType: TextInputType.number),
-                  ]),
-                  const SizedBox(height: 16),
-                  _formSection('Images', [_imageUploader()]),
-                  const SizedBox(height: 24),
-                  _saveButton(),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left: details form
-                Expanded(
-                  flex: 2,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _formSection('Basic Information', [
-                          _field(controller: _nameCtrl, label: 'Product Name *',
-                              validator: (v) => v?.isEmpty == true ? 'Required' : null),
-                          const SizedBox(height: 14),
-                          _field(controller: _descCtrl, label: 'Description *',
-                              maxLines: 4,
-                              validator: (v) => v?.isEmpty == true ? 'Required' : null),
-                          const SizedBox(height: 14),
-                          _dropdownField(),
-                        ]),
-                        const SizedBox(height: 16),
-                        _formSection('Pricing & Inventory', [
-                          Row(children: [
-                            Expanded(
-                              child: _field(controller: _priceCtrl, label: 'Price (₱) *',
-                                  keyboardType: TextInputType.number),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _field(controller: _stockCtrl, label: 'Stock Qty *',
-                                  keyboardType: TextInputType.number),
-                            ),
-                          ]),
-                        ]),
-                      ],
-                    ),
-                  ),
-                ),
-                const VerticalDivider(width: 1, color: _kBorder),
-                Expanded(
-                  flex: 1,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        _imageUploader(),
-                        const SizedBox(height: 24),
-                        _saveButton(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-      ),
-    );
-  }
-
-  Widget _formSection(String title, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _kCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: _kTextPrimary)),
-          const SizedBox(height: 14),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _field({
-    required TextEditingController controller,
-    required String label,
-    TextInputType? keyboardType,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      style: GoogleFonts.inter(fontSize: 13),
-      decoration: _inputDec(label),
-      validator: validator,
-    );
-  }
-
-  InputDecoration _inputDec(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: GoogleFonts.inter(fontSize: 13, color: _kTextSecondary),
-      filled: true,
-      fillColor: _kSurface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _kBorder)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _kBorder)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kAccent, width: 1.5)),
-    );
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_images.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload at least one image'), backgroundColor: _kRed),
-      );
-      return;
-    }
-    setState(() => _isSaving = true);
-
-    final auth = context.read<AuthProvider>();
-    final uid  = auth.user?.uid ?? '';
-    final spp  = context.read<SellerProductsProvider>();
-
-    try {
-      // Upload new media first
-      List<String> uploadedUrls = List.from(_images);
-      for (var file in _newMedia) {
-        final bytes = file.bytes ?? await File(file.path!).readAsBytes();
-        final isVid = _isFileTypeVideo(file);
-        String url;
-        if (isVid) {
-          final result = await ApiService.uploadProductVideo(bytes, file.name, uid);
-          url = result['video_url'] ?? '';
-        } else {
-          url = await ApiService.uploadProductImage(bytes, file.name, uid);
-        }
-        uploadedUrls.add(url);
-      }
-
-      final data = {
-        'sellerId': uid,
-        'seller_id': uid,
-        'name': _nameCtrl.text.trim(),
-        'description': _descCtrl.text.trim(),
-        'category': _category,
-        'price': double.parse(_priceCtrl.text.trim()),
-        'stock': int.parse(_stockCtrl.text.trim()),
-        'images': uploadedUrls,
-        'is_published': _isPublished,
-      };
-
-    bool success;
-    if (_isEdit) {
-      success = await spp.updateProduct(widget.product!.id, data);
-    } else {
-      success = await spp.addProduct(data);
-    }
-
-    setState(() => _isSaving = false);
-    if (mounted) {
-      if (success) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEdit ? 'Product updated' : 'Product added'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: _kGreen,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(spp.error ?? 'Failed to save product'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: _kRed,
-          ),
-        );
-      }
-    }
-  } catch (e) {
-    setState(() => _isSaving = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e'), backgroundColor: _kRed),
-      );
-    }
-  }
-}
-
-  Widget _dropdownField() {
-    return DropdownButtonFormField<String>(
-      value: (_categories.contains(_category) && _category.isNotEmpty) ? _category : null,
-      items: _categories.isEmpty
-          ? [const DropdownMenuItem(value: 'General', child: Text('General'))]
-          : _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-      onChanged: (v) => setState(() => _category = v ?? ''),
-      decoration: _inputDec('Category *'),
-      validator: (v) => (v == null && _category.isEmpty) ? 'Required' : null,
-    );
-  }
-
-  Widget _imageUploader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Product Media', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
-            Text('${_images.length + _newMedia.length} items', 
-              style: GoogleFonts.inter(fontSize: 12, color: _kTextSecondary)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 120,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              // Add Buttons
-              _buildAddMediaBtn(icon: Icons.add_a_photo_rounded, label: 'Add Image', onTap: () => _pickMedia(false)),
-              _buildAddMediaBtn(icon: Icons.video_call_rounded, label: 'Add Video', onTap: () => _pickMedia(true)),
-              
-              // Existing Images (URLs)
-              ..._images.asMap().entries.map((entry) => _buildUrlPreview(entry.value, entry.key)),
-              
-              // New Media (Files)
-              ..._newMedia.asMap().entries.map((entry) => _buildFilePreview(entry.value, entry.key)),
-            ],
-          ),
-        ),
-        if (_images.isEmpty && _newMedia.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text('Add at least one image to showcase your product.', 
-              style: GoogleFonts.inter(fontSize: 11, color: _kTextSecondary, fontStyle: FontStyle.italic)),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildAddMediaBtn({required IconData icon, required String label, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 100,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kBorder.withValues(alpha: 0.5), width: 1.5),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: _kAccent, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _kTextPrimary)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUrlPreview(String url, int index) {
-    final isVid = url.toLowerCase().contains('.mp4') || 
-                  url.toLowerCase().contains('.mov') || 
-                  url.toLowerCase().contains('.avi');
-    return Container(
-      width: 100,
-      margin: const EdgeInsets.only(right: 12),
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: MediaPreviewWidget(
-              url: url,
-              isVideo: isVid,
-            ),
-          ),
-          if (isVid)
-            const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
-          Positioned(
-            top: 4, right: 4,
-            child: GestureDetector(
-              onTap: () => _removeExistingImage(index),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilePreview(PlatformFile file, int index) {
-    final isVid = _isFileTypeVideo(file);
-    return Container(
-      width: 100,
-      margin: const EdgeInsets.only(right: 12),
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: MediaPreviewWidget(
-              path: file.path,
-              bytes: file.bytes,
-              isVideo: isVid,
-            ),
-          ),
-          if (isVid)
-            const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
-          Positioned(
-            top: 4, right: 4,
-            child: GestureDetector(
-              onTap: () => _removeNewMedia(index),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
-              ),
-            ),
-          ),
-          if (isVid)
-            Positioned(
-              bottom: 4, left: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
-                child: const Text('NEW VIDEO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _saveButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _isSaving ? null : _save,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _kAccent, foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
-        ),
-        child: _isSaving
-            ? const SizedBox(width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Text(_isEdit ? 'Save Changes' : 'Add Product'),
-      ),
-    );
-  }
-}
-
-// ─── Utility ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2904,7 +2424,7 @@ Future<void> _downloadReport(BuildContext context, SellerProvider sp) async {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Download failed: $e'),
+          content: Text('âŒ Download failed: $e'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFFE74C3C), // _kRed
         ),
@@ -2913,7 +2433,4 @@ Future<void> _downloadReport(BuildContext context, SellerProvider sp) async {
   }
 }
 
-String _navLabel(_NavItem item) {
-  return _navDefs.firstWhere((d) => d.$1 == item).$3;
-}
 

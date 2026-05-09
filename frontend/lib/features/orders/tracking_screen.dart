@@ -11,12 +11,13 @@ class TrackingScreen extends StatefulWidget {
   final String trackingNumber;
 
   const TrackingScreen({
-    Key? key, 
+    super.key, 
     required this.orderId,
     required this.trackingNumber,
-  }) : super(key: key);
+  });
 
   @override
+  // ignore: library_private_types_in_public_api
   _TrackingScreenState createState() => _TrackingScreenState();
 }
 

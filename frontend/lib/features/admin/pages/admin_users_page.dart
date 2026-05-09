@@ -95,7 +95,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   @override
   Widget build(BuildContext context) {
     final bool isMobile = ResponsiveHelper.isMobile(context);
-    final bool isTablet = ResponsiveHelper.isTablet(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -74,10 +74,13 @@ class _SellerOrderDetailsPageState extends State<SellerOrderDetailsPage> {
                         );
                         // We just pop and refresh
                         if (!mounted) return;
+                        // ignore: use_build_context_synchronously
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shipment created successfully!')));
+                        // ignore: use_build_context_synchronously
                         Navigator.pop(context, true); // Return true to signal refresh needed
                       } catch (e) {
                         if (!mounted) return;
+                        // ignore: use_build_context_synchronously
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
                       } finally {
                         if (mounted) setState(() => _isCreatingShipment = false);

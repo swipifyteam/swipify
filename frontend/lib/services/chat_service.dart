@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:swipify/models/chat_model.dart';
 import 'package:swipify/models/message_model.dart';
 import 'package:swipify/services/api_service.dart';
@@ -45,7 +46,9 @@ class ChatService {
           sellerName = sellerDoc.data()?['storeName'] ?? 'Unknown Store';
         }
       } catch (e) {
-        print('Error fetching user names for chat: $e');
+        if (kDebugMode) {
+          print('Error fetching user names for chat: $e');
+        }
       }
 
       final chatModel = ChatModel(
@@ -167,6 +170,7 @@ class ChatService {
       receiverId: receiverId,
       senderName: senderName,
       message: type == 'text' ? message : (type == 'image' ? '📷 Image' : '📹 Video'),
+    // ignore: avoid_print
     ).catchError((e) => print('Notification error: $e'));
   }
 

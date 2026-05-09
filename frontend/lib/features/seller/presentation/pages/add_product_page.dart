@@ -5,7 +5,6 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:swipify/core/theme.dart';
 import 'package:swipify/features/auth/service/auth_provider.dart';
@@ -30,7 +29,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final _sizesController = TextEditingController();
   final _colorsController = TextEditingController();
 
-  List<PlatformFile> _selectedMedia = [];
+  final List<PlatformFile> _selectedMedia = [];
   
   bool _isUploading = false;
   String _uploadStatus = 'Publishing product…';
@@ -175,6 +174,7 @@ class _AddProductPageState extends State<AddProductPage> {
             .toList(),
       };
 
+      // ignore: use_build_context_synchronously
       final provider = context.read<SellerProvider>();
       final success = await provider.addProduct(data, userId);
 

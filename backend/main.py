@@ -66,14 +66,18 @@ app.include_router(chats.router, prefix="/chats", tags=["Chats"])
 app.include_router(ai_chat.router, prefix="/ai", tags=["AI Chatbot"])
 app.include_router(webhooks.router, prefix="/api/webhook", tags=["Webhooks"])
 from app.utils.cloudinary_handler import upload_image_to_cloudinary
+from app.utils.media_utils import validate_image_size, ALLOWED_IMAGE_TYPES, validate_media_type
 import uuid
 
 @app.post("/upload-image", tags=["Upload"])
 async def upload_image(file: UploadFile = File(...)):
-    """Generic image upload to Cloudinary. Returns the secure CDN URL."""
+    """Generic image upload to Cloudinary with size validation."""
     try:
         print(f"[API] Generic upload reached for: {file.filename}")
+        validate_media_type(file.content_type, ALLOWED_IMAGE_TYPES)
         contents = await file.read()
+        validate_image_size(contents)
+        
         unique_filename = f"{uuid.uuid4()}_{file.filename}"
         url = upload_image_to_cloudinary(contents, unique_filename)
         return {"image_url": url}

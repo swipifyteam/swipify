@@ -84,6 +84,117 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
+  void _showBuyNowConfirmation() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text("Confirm Order", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: widget.product.primaryImage,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.product.name, 
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15), 
+                        maxLines: 2, 
+                        overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Text("Qty: $_quantity | Color: $_selectedColor", 
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                      const SizedBox(height: 4),
+                      Text("₱${(widget.product.price * _quantity).toStringAsFixed(2)}", 
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w900, color: SwipifyTheme.accentColor, fontSize: 18)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "You will be redirected to the checkout page to finalize your shipping and payment details.",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    child: Text("CANCEL", style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: Colors.grey.shade700)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _onBuyNow();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: SwipifyTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: Text("PROCEED TO CHECKOUT", style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _onBuyNow() async {
     setState(() => _addingToCart = true);
     try {
@@ -130,7 +241,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: CachedNetworkImage(imageUrl: widget.product.primaryImage, width: 90, height: 90, fit: BoxFit.cover),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.product.primaryImage, 
+                      width: 90, 
+                      height: 90, 
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey[100],
+                        child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 20),
                   Expanded(child: Column(
@@ -182,7 +302,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () { Navigator.pop(context); isBuyNow ? _onBuyNow() : _onAddToCart(); },
+                  onPressed: () { 
+                    Navigator.pop(context); 
+                    if (isBuyNow) {
+                      _showBuyNowConfirmation();
+                    } else {
+                      _onAddToCart();
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: SwipifyTheme.primaryColor,
                     foregroundColor: Colors.white,
@@ -284,7 +411,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 }
                 return GestureDetector(
                   onTap: () => _showZoomedImage(item.url),
-                  child: CachedNetworkImage(imageUrl: item.url, fit: BoxFit.cover),
+                  child: CachedNetworkImage(
+                    imageUrl: item.url, 
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(color: Colors.grey[100], child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[100],
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
+                          SizedBox(height: 8),
+                          Text('Image unavailable', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
@@ -644,7 +786,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: review.imageUrls.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (_, i) => GestureDetector(
                 onTap: () => _showZoomedImage(review.imageUrls[i]),
                 child: ClipRRect(
@@ -652,8 +794,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: CachedNetworkImage(
                     imageUrl: review.imageUrls[i],
                     width: 80, height: 80, fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(width: 80, height: 80, color: SwipifyTheme.backgroundColor),
-                    errorWidget: (_, __, ___) => Container(
+                    placeholder: (_, _) => Container(width: 80, height: 80, color: SwipifyTheme.backgroundColor),
+                    errorWidget: (_, _, _) => Container(
                       width: 80, height: 80, color: SwipifyTheme.backgroundColor,
                       child: const Icon(Icons.broken_image, size: 20, color: SwipifyTheme.textMuted),
                     ),

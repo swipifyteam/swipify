@@ -226,7 +226,7 @@ class _AdminProductsPageState extends State<AdminProductsPage> {
     final bool isMobile = ResponsiveHelper.isMobile(context);
     return ListView.builder(
       itemCount: 6,
-      itemBuilder: (_, __) => Card(
+      itemBuilder: (_, _) => Card(
         margin: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 6),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -282,7 +282,7 @@ class _AdminProductsPageState extends State<AdminProductsPage> {
                       child: Image.network(
                         images[0].toString(),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(Icons.broken_image, color: Colors.grey.shade400),
+                        errorBuilder: (_, _, _) => Icon(Icons.broken_image, color: Colors.grey.shade400),
                       ),
                     )
                   : Icon(Icons.image_outlined, color: Colors.grey.shade400),

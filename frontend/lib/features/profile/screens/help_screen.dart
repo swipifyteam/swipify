@@ -217,7 +217,7 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
             const Text('What can we help you with?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),
@@ -389,8 +389,10 @@ class _HelpScreenState extends State<HelpScreen> with SingleTickerProviderStateM
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
+                              // ignore: deprecated_member_use
                               color: Colors.blue.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
+                              // ignore: deprecated_member_use
                               border: Border.all(color: Colors.blue.withOpacity(0.3)),
                             ),
                             child: Column(

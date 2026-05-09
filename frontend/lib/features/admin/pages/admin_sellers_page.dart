@@ -142,7 +142,6 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
   @override
   Widget build(BuildContext context) {
     final bool isMobile = ResponsiveHelper.isMobile(context);
-    final bool isTablet = ResponsiveHelper.isTablet(context);
 
     return Column(
       children: [
@@ -251,7 +250,7 @@ class _AdminSellersPageState extends State<AdminSellersPage> {
   Widget _buildShimmerList() {
     return ListView.builder(
       itemCount: 5,
-      itemBuilder: (_, __) => Card(
+      itemBuilder: (_, _) => Card(
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -609,13 +608,15 @@ class _DeepDiveModalState extends State<_DeepDiveModal> {
     try {
       final data = await AdminService.getSellerApplicationDetail(widget.appId);
       debugPrint('[SELLER MGMT] Deep Dive loaded for: ${widget.appId}');
-      if (mounted) setState(() { 
+      if (mounted) {
+        setState(() { 
         _detail = data; 
         _isLoading = false; 
         
         final initialStoreName = _detail?['storeName'] ?? _detail?['store_name'] ?? widget.initialData['storeName'] ?? '';
         _storeNameController.text = initialStoreName.toString();
       });
+      }
     } catch (e) {
       debugPrint('[SELLER MGMT] Error loading detail: $e');
       if (mounted) setState(() { _error = e.toString(); _isLoading = false; });
@@ -879,7 +880,7 @@ class _DeepDiveModalState extends State<_DeepDiveModal> {
                 if (loadingProgress == null) return child;
                 return const Center(child: CircularProgressIndicator(strokeWidth: 2));
               },
-              errorBuilder: (_, __, ___) => Column(
+              errorBuilder: (_, _, _) => Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.broken_image, color: Colors.grey.shade400, size: 32),
@@ -972,6 +973,7 @@ class _DeepDiveModalState extends State<_DeepDiveModal> {
                   try {
                     await widget.onReject(widget.appId, reason);
                     if (mounted) {
+                      // ignore: use_build_context_synchronously
                       Navigator.pop(ctx);
                       Navigator.pop(context);
                     }

@@ -573,9 +573,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               try {
                 await auth.sendPasswordResetEmail(email);
                 if (!mounted) return;
+                // ignore: use_build_context_synchronously
                 _showCustomSnackBar(context, 'Password reset email sent!');
               } catch (e) {
                 if (!mounted) return;
+                // ignore: use_build_context_synchronously
                 _showCustomSnackBar(context, e.toString(), isError: true);
               }
             },
@@ -656,12 +658,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               try {
                 await auth.deleteAccount();
                 if (!mounted) return;
+                // ignore: use_build_context_synchronously
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
                   (route) => false,
                 );
               } catch (e) {
                 if (!mounted) return;
+                // ignore: use_build_context_synchronously
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(e.toString()), backgroundColor: Colors.red, duration: const Duration(seconds: 4)),
                 );

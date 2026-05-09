@@ -46,7 +46,6 @@ class _AdminFinancePageState extends State<AdminFinancePage> {
   @override
   Widget build(BuildContext context) {
     final bool isMobile = ResponsiveHelper.isMobile(context);
-    final bool isTablet = ResponsiveHelper.isTablet(context);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),

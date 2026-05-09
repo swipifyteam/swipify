@@ -176,6 +176,11 @@ class OrderService {
     }
     throw Exception('Failed to update order status: ${response.statusCode}');
   }
+
+  /// Cancel an order (sets status to 'cancelled')
+  static Future<OrderModel> cancelOrder(String orderId) async {
+    return updateOrderStatus(orderId, 'cancelled');
+  }
   /// Get tracking info for an order
   static Future<TrackingModel> getTracking(String orderId) async {
     debugPrint("[TRACKING FETCH] $orderId");

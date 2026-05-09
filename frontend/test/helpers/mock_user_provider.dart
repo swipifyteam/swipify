@@ -56,8 +56,6 @@ class MockUserProvider extends ChangeNotifier implements UserProvider {
   @override
   bool isVoucherClaimed(String voucherId) => _claimedVoucherIds.contains(voucherId);
 
-  @override
-  Future<void> claimVoucher(String voucherId) async {}
 
   @override
   void clear() {
@@ -98,5 +96,11 @@ class MockUserProvider extends ChangeNotifier implements UserProvider {
       );
       notifyListeners();
     }
+  }
+  
+  @override
+  Future<void> claimVoucher(String uid, String voucherId) {
+    // TODO: implement claimVoucher
+    throw UnimplementedError();
   }
 }

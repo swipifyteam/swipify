@@ -271,7 +271,7 @@ class VoucherManagementCard extends StatelessWidget {
     final sellerName = voucher['seller_name'] ?? 'Swipify';
 
     final discountDisplay = discountType == 'percentage'
-        ? '${value}% off'
+        ? '$value% off'
         : '₱${_formatPrice(value)} off';
 
     final usageDisplay = usageLimit != null
@@ -557,7 +557,7 @@ class _CreateVoucherDialogState extends State<CreateVoucherDialog> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _discountType,
+                  initialValue: _discountType,
                   items: const [
                     DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
                     DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (₱)')),
@@ -726,7 +726,7 @@ class _EditVoucherDialogState extends State<EditVoucherDialog> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _discountType,
+                  initialValue: _discountType,
                   items: const [
                     DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
                     DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (₱)')),
