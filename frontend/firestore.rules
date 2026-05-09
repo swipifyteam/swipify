@@ -2,37 +2,89 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Allow public read for essential settings (Terms, Privacy, etc.)
-    match /settings/{docId} {
-      allow read: if true;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Products and Categories should be publicly readable for shopping
-    match /products/{docId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Settings: Public read, Admin write
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Products: Public read, Seller-only write
+    match /products/{docId} {
+      allow read: if true;
+      allow create: if isAuthenticated(); // Backend or Seller App
+      allow update, delete: if isOwner(resource.data.seller_id) || isAdmin();
+    }
+    
+    // Categories: Public read, Admin write
     match /categories/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
+    // Vouchers: Public read, Seller-only write
     match /vouchers/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner(resource.data.seller_id) || isAdmin();
     }
 
-    // Users collection: Allow reading for phone existence checks
+    // Users: Public read for identity, Owner-only write
     match /users/{userId} {
       allow read: if true; 
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isOwner(userId) || isAdmin();
+      
+      // Sub-collections (Carts, Claimed Vouchers)
+      match /carts/{cartId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /claimed_vouchers/{voucherId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Only backend should update usage
+      }
     }
 
-    // Default rule for everything else: must be authenticated
+    // Orders: Participant-only read, Backend-only write (highly restricted)
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.user_id) || 
+        isOwner(resource.data.seller_id) ||
+        isAdmin()
+      );
+      allow write: if isAdmin(); // Orders should ideally be handled by FastAPI Admin SDK
+    }
+
+    // AI Chat History: Owner-only
+    match /ai_chat_history/{userId} {
+      allow read, write: if isOwner(userId);
+      match /messages/{msgId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Support Tickets: Owner or Admin
+    match /support_tickets/{ticketId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.user_id) || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+    }
+
+    // Global default: Deny all by default (Secure approach)
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAdmin();
     }
   }
 }

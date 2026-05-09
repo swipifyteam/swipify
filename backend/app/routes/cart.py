@@ -3,10 +3,11 @@
 # Handles fetching, adding, removing, and updating cart items.
 # Cart is stored in Firestore under: carts/{userId}/items/{productId}
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from firebase_client import db
 from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+from app.utils.auth_utils import get_current_user, verify_owner
 
 router = APIRouter()
 
@@ -41,18 +42,12 @@ class ClearCartRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/{user_id}")
-async def get_cart(user_id: str):
-    """Fetch all cart items for the given user.
-    
-    Returns cart items ENRICHED with full product data (name, price, images, seller_id).
-    Used by the Cart Screen to show real names and details instead of just IDs.
-    """
+async def get_cart(user_id: str, token: dict = Depends(get_current_user)):
+    """Fetch all cart items for the given user."""
+    verify_owner(user_id, token["uid"])
     try:
-        print(f"[CART] Fetching enriched cart for user: {user_id}")
-        # Get all items in the user's cart sub-collection
         items_ref = db.collection("carts").document(user_id).collection("items").get()
         cart_items = []
-
         total_price = 0.0
 
         for item_doc in items_ref:
@@ -60,61 +55,43 @@ async def get_cart(user_id: str):
             product_id = item_doc.id
             item["productId"] = product_id
 
-            # FETCH FULL PRODUCT DATA (Enrichment)
             product_doc = db.collection("products").document(product_id).get()
             if product_doc.exists:
                 p_data = product_doc.to_dict()
                 p_data["id"] = product_id
-
-                # Support both naming conventions for compatibility
                 p_data["sellerId"] = p_data.get("sellerId") or p_data.get("seller_id") or ""
                 p_data["seller_id"] = p_data["sellerId"]
                 
-                # Cleanup sentinel fields
                 p_data.pop("createdAt", None)
                 p_data.pop("updatedAt", None)
 
                 item["product"] = p_data
-                
-                # Calculate running total
                 price = float(p_data.get("price", 0.0))
                 qty = int(item.get("quantity", 1))
                 total_price += (price * qty)
-                
                 cart_items.append(item)
-            else:
-                print(f"[CART] Warning: Product {product_id} is in cart but missing from products collection.")
-                # We could auto-delete here, but safer to just skip for now.
 
-        print(f"[CART] Successfully enriched {len(cart_items)} items for {user_id}")
         return {
             "userId": user_id, 
             "items": cart_items,
-            "grandTotal": total_price,
+            "grandTotal": round(total_price, 2),
             "count": len(cart_items)
         }
     except Exception as e:
-        print(f"[CART ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/add")
-async def add_to_cart(request: AddToCartRequest):
+async def add_to_cart(request: AddToCartRequest, token: dict = Depends(get_current_user)):
     """Add or increment a product in the user's cart."""
+    verify_owner(request.userId, token["uid"])
     try:
-        print(f"[CART] Adding {request.productId} to cart for {request.userId} (qty: {request.quantity})")
-        
-        # Verify product exists before adding
+        # Verify product exists
         prod_check = db.collection("products").document(request.productId).get()
         if not prod_check.exists:
-             raise HTTPException(status_code=404, detail="Cannot add non-existent product to cart")
+             raise HTTPException(status_code=404, detail="Product not found")
 
-        item_ref = (
-            db.collection("carts")
-            .document(request.userId)
-            .collection("items")
-            .document(request.productId)
-        )
+        item_ref = db.collection("carts").document(request.userId).collection("items").document(request.productId)
         item_doc = item_ref.get()
 
         if item_doc.exists:
@@ -131,24 +108,24 @@ async def add_to_cart(request: AddToCartRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[CART ADD ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/remove")
-async def remove_from_cart(request: RemoveFromCartRequest):
+async def remove_from_cart(request: RemoveFromCartRequest, token: dict = Depends(get_current_user)):
     """Remove a product from the user's cart."""
+    verify_owner(request.userId, token["uid"])
     try:
         db.collection("carts").document(request.userId).collection("items").document(request.productId).delete()
-        print(f"[CART] Removed {request.productId} for user {request.userId}")
         return {"message": "Item removed from cart"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/update")
-async def update_cart_quantity(request: UpdateCartRequest):
+async def update_cart_quantity(request: UpdateCartRequest, token: dict = Depends(get_current_user)):
     """Explicitly set the quantity of a cart item."""
+    verify_owner(request.userId, token["uid"])
     try:
         item_ref = db.collection("carts").document(request.userId).collection("items").document(request.productId)
         if request.quantity <= 0:
@@ -162,16 +139,14 @@ async def update_cart_quantity(request: UpdateCartRequest):
 
 
 @router.post("/clear")
-async def clear_cart(request: ClearCartRequest):
+async def clear_cart(request: ClearCartRequest, token: dict = Depends(get_current_user)):
     """Clear all items in the user's cart."""
+    verify_owner(request.userId, token["uid"])
     try:
-        print(f"[CART] Clearing cart for user: {request.userId}")
         items_ref = db.collection("carts").document(request.userId).collection("items")
-        # Delete all documents in subcollection
         docs = items_ref.get()
         for doc in docs:
             doc.reference.delete()
         return {"message": "Cart cleared"}
     except Exception as e:
-        print(f"[CART CLEAR ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -960,7 +960,7 @@ class _ProductsModuleState extends State<_ProductsModule> {
                         onChanged: (_) => setState(() {}),
                         style: GoogleFonts.inter(fontSize: 13),
                         decoration: InputDecoration(
-                          hintText: 'Search productsâ€¦',
+                          hintText: 'Search products',
                           hintStyle: GoogleFonts.inter(fontSize: 13, color: _kTextSecondary),
                           prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _kTextSecondary),
                           filled: true,
