@@ -69,7 +69,7 @@ class SalesChart extends StatelessWidget {
               ],
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
-                  tooltipBgColor: Colors.blueAccent,
+                  getTooltipColor: (touchedSpot) => Colors.blueAccent,
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
                       final item = sortedData[spot.x.toInt()];
