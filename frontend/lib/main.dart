@@ -26,6 +26,7 @@ import 'package:swipify/features/cart/service/cart_provider.dart';
 import 'package:swipify/features/seller/service/seller_provider.dart';
 import 'package:swipify/features/seller/service/seller_products_provider.dart';
 import 'package:swipify/features/seller/service/seller_vouchers_provider.dart';
+import 'package:swipify/features/seller/service/seller_analytics_provider.dart';
 import 'package:swipify/features/profile/service/user_provider.dart';
 import 'package:swipify/features/orders/service/order_provider.dart';
 import 'package:swipify/features/checkout/service/checkout_provider.dart';
@@ -85,6 +86,7 @@ class Swipify extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SellerProvider()),
         ChangeNotifierProvider(create: (_) => SellerProductsProvider()),
         ChangeNotifierProvider(create: (_) => SellerVouchersProvider()),
+        ChangeNotifierProvider(create: (_) => SellerAnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => CheckoutProvider()),

@@ -19,6 +19,7 @@ from app.seller import routes as seller_routes
 from app.seller import seller_products
 from app.seller import inventory
 from app.seller import orders_seller
+from app.seller import analytics as seller_analytics
 from app.routes import seller_vouchers, marketing, payments, chats
 
 # Create the FastAPI app instance
@@ -50,6 +51,7 @@ app.include_router(seller_routes.router, prefix="/seller", tags=["Seller & Admin
 app.include_router(seller_products.router, prefix="/seller/products", tags=["Seller - Products"])
 app.include_router(inventory.router, prefix="/seller/inventory", tags=["Seller - Inventory"])
 app.include_router(orders_seller.router, prefix="/seller/orders", tags=["Seller - Orders"])
+app.include_router(seller_analytics.router, prefix="/seller/analytics", tags=["Seller - Analytics"])
 
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(address.router, tags=["Addresses"])

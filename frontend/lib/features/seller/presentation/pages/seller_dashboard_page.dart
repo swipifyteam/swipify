@@ -25,6 +25,8 @@ import 'package:swipify/models/product_model.dart';
 import 'package:swipify/services/api_service.dart';
 import 'package:swipify/core/utils/responsive_helper.dart';
 import 'package:swipify/screens/chat_list_screen.dart';
+import 'package:swipify/features/seller/service/seller_analytics_provider.dart';
+import 'package:swipify/features/seller/presentation/widgets/sales_chart.dart';
 
 // â”€â”€â”€ Colour palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const _kPrimary    = Color(0xFF36454F); // Charcoal 
@@ -631,26 +633,59 @@ Widget _pillBadge(String text, Color bg) => Container(
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // MODULE 1 â”€â”€ OVERVIEW
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-class _OverviewModule extends StatelessWidget {
+class _OverviewModule extends StatefulWidget {
   const _OverviewModule();
 
   @override
+  State<_OverviewModule> createState() => _OverviewModuleState();
+}
+
+class _OverviewModuleState extends State<_OverviewModule> {
+  int _selectedDays = 7;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchAnalytics());
+  }
+
+  void _fetchAnalytics() {
+    final auth = context.read<AuthProvider>();
+    final uid = auth.user?.uid;
+    if (uid != null) {
+      context.read<SellerAnalyticsProvider>().fetchAnalytics(uid, days: _selectedDays);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final sp  = context.watch<SellerProvider>();
+    final sp = context.watch<SellerProvider>();
     final spp = context.watch<SellerProductsProvider>();
+    final ap = context.watch<SellerAnalyticsProvider>();
     final fmt = NumberFormat('#,##0.00');
+    
     final orders = sp.orders;
-    final pending   = orders.where((o) => o.status == 'pending').length;
-    final shipped   = orders.where((o) => o.status == 'shipped').length;
-    final delivered = orders.where((o) => o.status == 'delivered').length;
-    final lowStock  = spp.products.where((p) => p.stock < 10).length;
+    final pending = orders.where((o) => o.status == 'pending').length;
+    final lowStock = spp.products.where((p) => p.stock < 10).length;
+
+    // Use analytics data if available, fallback to basic provider
+    final revenue = ap.analytics?.todayRevenue ?? 0;
+    final totalRevenue = ap.analytics?.totalRevenue ?? sp.totalEarnings;
+    final todayOrders = ap.analytics?.todayOrderCount ?? 0;
+    final totalOrdersCount = ap.analytics?.totalOrderCount ?? sp.totalOrders;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _ModuleBar(title: 'Overview', showDate: true),
+        _ModuleBar(
+          title: 'Overview',
+          showDate: true,
+          actions: [
+            _buildDateFilter(),
+          ],
+        ),
         Expanded(
-          child: sp.isLoading
+          child: (sp.isLoading || ap.isLoading)
               ? const Center(child: CircularProgressIndicator(color: _kAccent))
               : ListView(
                   padding: ResponsiveHelper.getPadding(context),
@@ -665,36 +700,52 @@ class _OverviewModule extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
                         _StatCard(
-                          label: 'Total Revenue',
-                          value: '₱${fmt.format(sp.totalEarnings)}',
-                          sub: 'From delivered orders',
+                          label: "Today's Revenue",
+                          value: '₱${fmt.format(revenue)}',
+                          sub: 'Total: ₱${fmt.format(totalRevenue)}',
                           icon: Icons.payments_rounded,
                           color: _kGreen,
                         ),
                         _StatCard(
-                          label: 'Total Orders',
-                          value: '${sp.totalOrders}',
-                          sub: '$pending pending',
+                          label: "Today's Orders",
+                          value: '$todayOrders',
+                          sub: 'Total: $totalOrdersCount',
                           icon: Icons.shopping_bag_rounded,
                           color: _kBlue,
                         ),
                         _StatCard(
                           label: 'Active Products',
                           value: '${spp.products.length}',
-                          sub: lowStock > 0 ? '$lowStock low-stock' : null,
+                          sub: lowStock > 0 ? '$lowStock low-stock' : 'Healthy stock',
                           icon: Icons.inventory_2_rounded,
                           color: _kPurple,
                         ),
                         _StatCard(
-                          label: 'Completed Orders',
-                          value: '$delivered',
-                          sub: '$shipped shipped',
-                          icon: Icons.check_circle_rounded,
+                          label: 'Pending Tasks',
+                          value: '$pending',
+                          sub: 'Orders to process',
+                          icon: Icons.assignment_late_rounded,
                           color: _kOrange,
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
+
+                    // Sales Trend Chart
+                    if (ap.analytics != null) ...[
+                      const _SectionHeader(title: 'Sales Performance Trend'),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: _kCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _kBorder),
+                        ),
+                        child: SalesChart(data: ap.analytics!.dailyStats),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Recent orders section
                     const _SectionHeader(title: 'Recent Orders'),
@@ -725,6 +776,35 @@ class _OverviewModule extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDateFilter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _kBorder),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedDays,
+          icon: const Icon(Icons.calendar_today_rounded, size: 16, color: _kTextSecondary),
+          style: GoogleFonts.inter(color: _kTextPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+          onChanged: (val) {
+            if (val != null) {
+              setState(() => _selectedDays = val);
+              _fetchAnalytics();
+            }
+          },
+          items: const [
+            DropdownMenuItem(value: 7, child: Text('Last 7 Days')),
+            DropdownMenuItem(value: 30, child: Text('Last 30 Days')),
+            DropdownMenuItem(value: 90, child: Text('Last 90 Days')),
+          ],
+        ),
+      ),
     );
   }
 }

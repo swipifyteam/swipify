@@ -27,7 +27,7 @@ def batch_reserve_order_stock_service(items: list):
                 
             current_stock = snap.get("stock") or 0
             if current_stock < qty:
-                raise ValueError(f"Out of stock: {snap.get('name', 'Product')} (Available: {current_stock}, Requested: {qty})")
+                raise ValueError(f"Out of stock: {snap.to_dict().get('name', 'Product')} (Available: {current_stock}, Requested: {qty})")
             
             updates.append((ref, current_stock - qty))
         

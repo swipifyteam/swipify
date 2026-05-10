@@ -34,9 +34,13 @@ class ApiService {
 
   // ── Generic Helpers ──────────────────────────────────────────────────────────
 
-  static Future<dynamic> get(String path) async {
+  static Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
+    var uri = Uri.parse('$baseUrl$path');
+    if (queryParams != null) {
+      uri = uri.replace(queryParameters: queryParams);
+    }
     final response = await http.get(
-      Uri.parse('$baseUrl$path'),
+      uri,
       headers: await getHeaders(),
     );
     if (response.statusCode == 200) {

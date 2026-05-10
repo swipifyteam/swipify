@@ -77,3 +77,17 @@ class BulkActionRequest(BaseModel):
 
 class StockUpdateRequest(BaseModel):
     adjustment: int  # +/- value
+
+# --- ANALYTICS SCHEMAS ---
+
+class DailySalesData(BaseModel):
+    date: str
+    revenue: float
+    order_count: int
+
+class AnalyticsResponse(BaseModel):
+    today_revenue: float
+    today_order_count: int
+    total_revenue: float
+    total_order_count: int
+    daily_stats: List[DailySalesData]
